@@ -164,7 +164,8 @@ namespace LibreLancer.Server
             obj.AddComponent(cargo);
             var stateDescription = new StateGraphDescription(stateGraph!.ToUpperInvariant(), "LEADER");
             World.Server.GameData.Items.Ini.StateGraphDb.Tables.TryGetValue(stateDescription, out var stateTable);
-            var npcComponent = new SNPCComponent(obj, this, stateTable!) { MissionRuntime = msn, Faction = affiliation };
+            var npcComponent = new SNPCComponent(obj, this, stateTable!, stateDescription.Name)
+                { MissionRuntime = msn, Faction = affiliation };
             npcComponent.SetPilot(pilot);
             npcComponent.CommHead = costume?.Head;
             npcComponent.CommBody = costume?.Body;

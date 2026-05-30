@@ -167,7 +167,18 @@ namespace LibreLancer.Server
 
         public void gotovec(float x, float y, float z, float range, float maxthrottle)
         {
-            if (Object.TryGetComponent<DirectiveRunnerComponent>(out var n))
+            if (Object.TryGetComponent<SNPCComponent>(out var npc))
+            {
+                npc.SetDirectives([
+                    new GotoVecDirective()
+                    {
+                        Target = new(x, y, z),
+                        MaxThrottle = maxthrottle,
+                        Range = range
+                    }
+                ], World);
+            }
+            else if (Object.TryGetComponent<DirectiveRunnerComponent>(out var n))
             {
                 n.SetDirectives([
                     new GotoVecDirective()
@@ -214,6 +225,10 @@ namespace LibreLancer.Server
             if (Object.TryGetComponent<AutopilotComponent>(out var ap))
             {
                 ap.StartFormation();
+            }
+            if (Object.TryGetComponent<SNPCComponent>(out var npc))
+            {
+                npc.Behavior.RefreshRole(World);
             }
         }
     }

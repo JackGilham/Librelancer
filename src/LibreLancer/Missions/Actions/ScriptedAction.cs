@@ -792,6 +792,10 @@ namespace LibreLancer.Missions.Actions
             {
                 player.SetDirectives(directives);
             }
+            else if (obj.TryGetComponent<SNPCComponent>(out var npc))
+            {
+                npc.SetDirectives(directives, world);
+            }
             else if (obj.TryGetComponent<DirectiveRunnerComponent>(out var dr))
             {
                 dr.SetDirectives(directives, world);

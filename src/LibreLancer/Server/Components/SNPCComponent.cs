@@ -4,6 +4,7 @@ using System.Numerics;
 using LibreLancer.Data.GameData;
 using LibreLancer.Data.Schema.Pilots;
 using LibreLancer.Missions;
+using LibreLancer.Net;
 using LibreLancer.Server.Ai;
 using LibreLancer.World;
 using LibreLancer.World.Components;
@@ -18,41 +19,26 @@ namespace LibreLancer.Server.Components
         public Accessory? CommHelmet;
 
         public AiState? CurrentDirective;
-        private NPCManager manager;
+        public NPCManager Manager { get; }
         public MissionRuntime? MissionRuntime;
 
         public Pilot? Pilot;
         public StateGraph? StateGraph;
+        public string StateGraphName { get; }
+        public BehaviorManager Behavior { get; }
 
         private Random random = new();
 
         public float GetStateValue(StateGraphEntry row, StateGraphEntry column, float defaultVal = 0.0f)
+            => BehaviorChooser.GetStateValue(StateGraph, row, column, defaultVal);
+
+
+        public SNPCComponent(GameObject parent, NPCManager manager, StateGraph stateGraph, string stateGraphName) : base(parent)
         {
-            if (StateGraph == null)
-            {
-                return defaultVal;
-            }
-
-            if ((int) row >= StateGraph.Data.Count)
-            {
-                return defaultVal;
-            }
-
-            var tableRow = StateGraph.Data[(int) row];
-
-            if ((int) column >= tableRow.Length)
-            {
-                return defaultVal;
-            }
-
-            return tableRow[(int) column];
-        }
-
-
-        public SNPCComponent(GameObject parent, NPCManager manager, StateGraph stateGraph) : base(parent)
-        {
-            this.manager = manager;
+            Manager = manager;
             StateGraph = stateGraph;
+            StateGraphName = stateGraphName;
+            Behavior = new BehaviorManager(this, random);
         }
 
         public void StartTradelane()
@@ -65,12 +51,13 @@ namespace LibreLancer.Server.Components
 
         public void Docked()
         {
-            manager.Despawn(Parent, false);
+            Manager.Despawn(Parent, false);
         }
 
         public void Attack(GameObject tgt, GameWorld world)
         {
-            SetState(new AiAttackState(tgt), world);
+            SetAttitude(tgt, RepAttitude.Hostile);
+            Parent.GetComponent<SelectedTargetComponent>()!.Selected = tgt;
         }
 
         public void SetState(AiState state, GameWorld world)
@@ -115,7 +102,7 @@ namespace LibreLancer.Server.Components
         private int GetHostileWeight(GameObject obj)
         {
             if ("player".Equals(obj.Nickname, StringComparison.OrdinalIgnoreCase) &&
-                manager.AttackingPlayer > 2)
+                Manager.AttackingPlayer > 2)
             {
                 return -100;
             }
@@ -412,9 +399,14 @@ namespace LibreLancer.Server.Components
             return AddInaccuracy(otherPos, myPos, staticDist, maxRange, isAutoTurret);
         }
 
-        private GameObject? GetHostileAndFire(double time, GameWorld world)
+        public GameObject? LastShootAt
         {
-            // Get hostile
+            get => lastShootAt;
+            set => lastShootAt = value;
+        }
+
+        public GameObject? SelectHostileTarget(GameWorld world)
+        {
             GameObject? shootAt = null;
             int shootAtWeight = -1000;
             var myPos = Parent.WorldTransform.Position;
@@ -448,67 +440,57 @@ namespace LibreLancer.Server.Components
             }
 
             Parent.GetComponent<SelectedTargetComponent>()!.Selected = shootAt;
-
-            // Shoot at hostile
-            if (shootAt != null && Parent.TryGetComponent<WeaponControlComponent>(out var weapons))
-            {
-                if ("player".Equals(shootAt.Nickname, StringComparison.OrdinalIgnoreCase))
-                {
-                    manager.AttackingPlayer++;
-                }
-
-                var dist = Vector3.Distance(shootAt.WorldTransform.Position, myPos);
-
-                var gunRange = weapons.GetGunMaxRange() * 0.95f;
-                weapons.AimPoint = GetAimPosition(shootAt, weapons, false); // Regular guns aim
-
-                var missileMax = weapons.GetMissileMaxRange();
-                var missileRange = Pilot?.Missile?.LaunchRange ?? missileMax;
-
-                if (missileMax < missileRange)
-                {
-                    missileRange = missileMax;
-                }
-
-                // Fire Missiles
-                if ((Pilot?.Missile?.MissileLaunchAllowOutOfRange ?? false) ||
-                    dist <= missileRange)
-                {
-                    missileTimer -= time;
-
-                    if (missileTimer <= 0)
-                    {
-                        weapons.FireMissiles(world);
-                        missileTimer = ValueWithVariance(Pilot?.Missile?.LaunchIntervalTime,
-                            Pilot?.Missile?.LaunchVariancePercent);
-                        missileTimer = Pilot?.Missile?.LaunchIntervalTime ?? 0;
-                    }
-                }
-
-                // Fire guns
-                if (dist < gunRange)
-                {
-                    var fireInfo = RunFireTimers((float) time);
-
-                    if (fireInfo.ShouldFireRegular || fireInfo.ShouldFireAutoTurrets)
-                    {
-                        // Fire regular guns and auto-turrets separately based on their timers
-                        FireWeaponGroups(weapons, fireInfo, world);
-                    }
-                }
-            }
-            else
-            {
-                // fireTimer = Pilot?.Gun?.FireIntervalTime ?? 0;
-                // missileTimer = Pilot?.Missile?.LaunchIntervalTime ?? 0;
-            }
-
             return shootAt;
         }
 
-        private StateGraphEntry currentState = StateGraphEntry.NULL;
+        public void FireAtTarget(GameObject shootAt, double time, GameWorld world)
+        {
+            if (!Parent.TryGetComponent<WeaponControlComponent>(out var weapons))
+            {
+                return;
+            }
 
-        private double timeInState = 0;
+            if ("player".Equals(shootAt.Nickname, StringComparison.OrdinalIgnoreCase))
+            {
+                Manager.AttackingPlayer++;
+            }
+
+            var dist = Vector3.Distance(shootAt.WorldTransform.Position, Parent.WorldTransform.Position);
+
+            var gunRange = weapons.GetGunMaxRange() * 0.95f;
+            weapons.AimPoint = GetAimPosition(shootAt, weapons, false);
+
+            var missileMax = weapons.GetMissileMaxRange();
+            var missileRange = Pilot?.Missile?.LaunchRange ?? missileMax;
+
+            if (missileMax < missileRange)
+            {
+                missileRange = missileMax;
+            }
+
+            if ((Pilot?.Missile?.MissileLaunchAllowOutOfRange ?? false) ||
+                dist <= missileRange)
+            {
+                missileTimer -= time;
+
+                if (missileTimer <= 0)
+                {
+                    weapons.FireMissiles(world);
+                    missileTimer = ValueWithVariance(Pilot?.Missile?.LaunchIntervalTime,
+                        Pilot?.Missile?.LaunchVariancePercent);
+                }
+            }
+
+            if (dist < gunRange)
+            {
+                var fireInfo = RunFireTimers((float) time);
+
+                if (fireInfo.ShouldFireRegular || fireInfo.ShouldFireAutoTurrets)
+                {
+                    FireWeaponGroups(weapons, fireInfo, world);
+                }
+            }
+        }
 
         public string GetDebugInfo()
         {
@@ -565,76 +547,30 @@ namespace LibreLancer.Server.Components
             float npcAngle = Pilot?.Gun?.FireAccuracyConeAngle ?? 0;
 
             return
-                $"Autopilot: {beh}\nShooting At: {ls}\nDirective: {CurrentDirective?.ToString() ?? "null"}\nState: {currentState}\nMax Range: {maxRange}\nPhys Active: {physActive}\nWeapons: {totalGuns} total ({regularGuns} regular, {autoTurrets} auto-turrets)\nTimer: {fireTimer:F2}, Cycle: {fireCycle}\nNPC Base Power: {npcPower} (higher=more inaccuracy)\nAccuracy: Regular=min 5.0, Auto-Turret=10x base power\nInBurst: {inBurst}\n{formation}";
+                $"Autopilot: {beh}\nShooting At: {ls}\n{Behavior.GetDebugInfo()}Max Range: {maxRange}\nPhys Active: {physActive}\nWeapons: {totalGuns} total ({regularGuns} regular, {autoTurrets} auto-turrets)\nTimer: {fireTimer:F2}, Cycle: {fireCycle}\nNPC Base Power: {npcPower} (higher=more inaccuracy)\nAccuracy: Regular=min 5.0, Auto-Turret=10x base power\nInBurst: {inBurst}\nRecent Damage: {damageTaken:F0}\nMissile Threat: {missileThreatTimer:F2}\n{formation}";
         }
 
-        private void Transition(params StateGraphEntry[] possible)
-        {
-            foreach (var e in possible)
-            {
-                if (random.NextSingle() < GetStateValue(currentState, e))
-                {
-                    EnterState(e);
-                    break;
-                }
-            }
-        }
-
-        private float evadeX = 0;
-        private float evadeY = 0;
-        private float evadeZ = 0;
-        private Vector3 buzzDirection;
-        private bool evadeThrust = false;
-
-        private void EnterState(StateGraphEntry e)
-        {
-            currentState = e;
-            timeInState = 0;
-
-            if (e == StateGraphEntry.Evade)
-            {
-                var turnThrottle = Pilot?.EvadeBreak?.TurnThrottle ?? 1;
-                var rollThrottle = Pilot?.EvadeBreak?.RollThrottle ?? 1;
-                evadeX = turnThrottle * random.Next(-1, 2);
-                evadeY = turnThrottle * random.Next(-1, 2);
-                evadeZ = rollThrottle * random.Next(-1, 2);
-                evadeThrust = random.Next(0, 2) == 1;
-            }
-            else if (e == StateGraphEntry.Buzz)
-            {
-                buzzDirection = new Vector3(random.NextSingle(),
-                    random.NextSingle(), random.NextSingle()).Normalized();
-            }
-        }
-
-        private double damageTimer = 3;
+        private double damageTimer = 0;
         private float damageTaken = 0;
+        private double missileThreatTimer = 0;
+
+        public bool HasRecentDamage => damageTimer > 0 && damageTaken > 0;
+        public float RecentDamage => damageTaken;
+        public bool HasRecentMissileThreat => missileThreatTimer > 0;
 
         public void TakingDamage(float amount)
         {
             damageTimer = 3;
             damageTaken += amount;
-
-            if (damageTaken > 100 &&
-                currentState != StateGraphEntry.Evade &&
-                GetStateValue(currentState, StateGraphEntry.Evade) > 0)
-            {
-                EnterState(StateGraphEntry.Evade);
-            }
         }
 
-        public override void Update(double time, GameWorld world)
+        public void RecordMissileThreat(double reactionTime = 3)
         {
-            if (!Parent.TryGetComponent<AutopilotComponent>(out var ap))
-            {
-                return;
-            }
+            missileThreatTimer = Math.Max(missileThreatTimer, reactionTime);
+        }
 
-            if (ap.CurrentBehavior == AutopilotBehaviors.Undock)
-            {
-                return; // no npc yet
-            }
-
+        internal void UpdateReactionTimers(double time)
+        {
             damageTimer -= time;
 
             if (damageTimer < 0)
@@ -643,82 +579,92 @@ namespace LibreLancer.Server.Components
                 damageTaken = 0;
             }
 
-            CurrentDirective?.Update(Parent, world, this, time);
-
-            var shootAt = GetHostileAndFire(time, world);
-            lastShootAt = shootAt;
-
-            var runningDirective = Parent.TryGetComponent<DirectiveRunnerComponent>(out var directiveRunner) &&
-                                   directiveRunner.Active;
-
-            if (CurrentDirective != null ||
-                runningDirective ||
-                shootAt == null ||
-                ap.CurrentBehavior == AutopilotBehaviors.Formation)
+            missileThreatTimer -= time;
+            if (missileThreatTimer < 0)
             {
-                currentState = StateGraphEntry.NULL;
-                timeInState = 0;
+                missileThreatTimer = 0;
+            }
+        }
+
+        public bool ShouldEvadeImmediately()
+        {
+            if (ShouldDrasticEvade())
+            {
+                return false;
+            }
+
+            if (HasRecentMissileThreat)
+            {
+                return true;
+            }
+
+            if (!HasRecentDamage)
+            {
+                return false;
+            }
+
+            var threshold = Pilot?.DamageReaction?.EvadeBreakDamageTriggerPercent ?? 0;
+            if (threshold > 0 &&
+                Parent.TryGetComponent<SHealthComponent>(out var health) &&
+                health.MaxHealth > 0)
+            {
+                return damageTaken / health.MaxHealth * 100 >= threshold;
+            }
+
+            return damageTaken > 100;
+        }
+
+        public bool ShouldDrasticEvade()
+        {
+            return HasRecentMissileThreat &&
+                   (Pilot?.MissileReactionBlock?.EvadeBreakMissileReactionTime ?? 0) > 0;
+        }
+
+        public bool ShouldBreakFormation()
+        {
+            if (Parent.Formation == null ||
+                Parent.Formation.LeadShip == Parent)
+            {
+                return false;
+            }
+
+            if (HasRecentMissileThreat &&
+                (Pilot?.Formation?.BreakFormationMissileReactionTime ?? 0) > 0)
+            {
+                return true;
+            }
+
+            var threshold = Pilot?.Formation?.BreakFormationDamageTriggerPercent ?? 0;
+            if (threshold <= 0 ||
+                !HasRecentDamage ||
+                !Parent.TryGetComponent<SHealthComponent>(out var health) ||
+                health.MaxHealth <= 0)
+            {
+                return false;
+            }
+
+            return damageTaken / health.MaxHealth * 100 >= threshold;
+        }
+
+        public void SetDirectives(MissionDirective[]? directives, GameWorld world)
+        {
+            Behavior.SetDirectives(directives, world);
+        }
+
+        public override void Update(double time, GameWorld world)
+        {
+            if (CurrentDirective != null)
+            {
+                CurrentDirective.Update(Parent, world, this, time);
                 return;
             }
 
-            var si = Parent.GetComponent<ShipSteeringComponent>()!;
-            timeInState += time;
-
-            bool canTransition = false;
-
-            var mypos = Parent.WorldTransform.Position;
-
-            si.InThrottle = 0;
-            si.InPitch = 0;
-            si.InYaw = 0;
-            si.InRoll = 0;
-            si.Cruise = false;
-            si.Thrust = false;
-
-            switch (currentState)
-            {
-                case StateGraphEntry.NULL:
-                    ap.Cancel();
-                    canTransition = true;
-                    break;
-                case StateGraphEntry.Evade:
-                    ap.Cancel();
-                    si.InThrottle = 1;
-                    si.Cruise = false;
-                    si.Thrust = evadeThrust;
-                    si.InPitch = evadeX;
-                    si.InYaw = evadeY;
-                    si.InRoll = evadeZ;
-                    canTransition = timeInState >= (Pilot?.EvadeBreak?.Time ?? 5);
-                    break;
-                case StateGraphEntry.Buzz:
-                {
-                    var dist = Pilot?.BuzzPassBy?.DistanceToPassBy ?? 100;
-                    var dest = shootAt.WorldTransform.Transform(buzzDirection * dist);
-                    ap.GotoVec(dest, GotoKind.GotoNoCruise, 1, 0);
-                    canTransition = timeInState >= (Pilot?.BuzzPassBy?.PassByTime ?? 5) ||
-                                    Vector3.DistanceSquared(dest, mypos) < 16;
-                    break;
-                }
-                case StateGraphEntry.Face:
-                case StateGraphEntry.Trail:
-                    ap.GotoObject(shootAt, GotoKind.GotoNoCruise, 1, Pilot?.Trail?.Distance ?? 150);
-                    canTransition = timeInState >= 5;
-                    break;
-                default:
-                    canTransition = true;
-                    break;
-            }
-
-            if (canTransition)
-            {
-                Transition(StateGraphEntry.Face, StateGraphEntry.Trail, StateGraphEntry.Buzz);
-            }
+            Behavior.Update(time, world);
         }
 
         public void DockWith(GameObject tgt, GameWorld world)
         {
-            SetState(new AiDockState(tgt, GotoKind.Goto), world);
+            Behavior.DockWith(tgt, world);
         }
     }
 }

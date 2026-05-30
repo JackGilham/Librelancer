@@ -180,8 +180,16 @@ namespace LibreLancer.Missions.Actions
                     shipArch?.StateGraph ?? "FIGHTER",
                     npcDef.SpaceCostume,
                     ld!, pilot, pos, orient, null, 0, runtime);
-                var drComp = obj.GetComponent<DirectiveRunnerComponent>();
-                drComp!.SetDirectives(directives, runtime.Player.Space.World.GameWorld);
+                if (obj.TryGetComponent<SNPCComponent>(out var npc))
+                {
+                    npc.SetDirectives(directives, runtime.Player.Space.World.GameWorld);
+                }
+                else
+                {
+                    var drComp = obj.GetComponent<DirectiveRunnerComponent>();
+                    drComp!.SetDirectives(directives, runtime.Player.Space.World.GameWorld);
+                }
+
                 var dstComp = obj.GetComponent<SDestroyableComponent>();
                 dstComp!.OnKilled = () => { runtime.ObjectDestroyed(ship.Nickname); };
             });
