@@ -42,6 +42,24 @@ public class DirectiveRunnerComponent(GameObject parent) : GameComponent(parent)
             ? 1
             : inThrottle / 100.0f;
 
+    private void BreakFormation()
+    {
+        if (Parent.TryGetComponent<CLocalPlayerComponent>(out var pl))
+        {
+            pl.BreakFormation();
+        }
+        else
+        {
+            Parent.Formation?.Remove(Parent);
+        }
+
+        if (Parent.TryGetComponent<AutopilotComponent>(out var ap) &&
+            ap.CurrentBehavior == AutopilotBehaviors.Formation)
+        {
+            ap.Cancel();
+        }
+    }
+
     private void StartDirective(MissionDirective directive, GameWorld world)
     {
         splineIndex = -1;
@@ -101,15 +119,7 @@ public class DirectiveRunnerComponent(GameObject parent) : GameComponent(parent)
             }
             case BreakFormationDirective:
             {
-                if (Parent.TryGetComponent<CLocalPlayerComponent>(out var pl))
-                {
-                    pl.BreakFormation();
-                }
-                else
-                {
-                    Parent.Formation?.Remove(Parent);
-                }
-
+                BreakFormation();
                 NextDirective(world);
                 break;
             }
@@ -178,16 +188,8 @@ public class DirectiveRunnerComponent(GameObject parent) : GameComponent(parent)
                 {
                     si.Throttle = 0;
                 }
-
-                // this may be hacky
-                if (Parent.TryGetComponent<CLocalPlayerComponent>(out var pl))
-                {
-                    pl.BreakFormation();
-                }
-                else
-                {
-                    Parent.Formation?.Remove(Parent);
-                }
+                
+                BreakFormation();
 
                 NextDirective(world);
                 break;
