@@ -516,6 +516,12 @@ namespace LibreLancer.Server.Components
         private string lastStateChangeReason = "initial";
         private string lastBlockReason = "none";
 
+        private const float FaceSearchAngle = MathF.PI / 16f;
+        private const float FaceAfterburnerAngle = MathF.PI / 2f;
+        private const float DefaultFaceSearchTime = 1;
+        private const float DefaultFaceTime = 2;
+        private const float DefaultFaceMaxTargetDistance = 500;
+
         private static string ObjectDebugName(GameObject? obj)
         {
             if (obj == null)
@@ -657,6 +663,9 @@ namespace LibreLancer.Server.Components
         private float evadeZ = 0;
         private Vector3 buzzDirection;
         private bool evadeThrust = false;
+        private bool faceInCone = false;
+        private double facePhaseTime = 0;
+        private double faceAfterburnerTime = 0;
 
         private void EnterState(StateGraphEntry e, string reason)
         {
@@ -678,6 +687,17 @@ namespace LibreLancer.Server.Components
             {
                 buzzDirection = new Vector3(random.NextSingle(),
                     random.NextSingle(), random.NextSingle()).Normalized();
+            }
+            else if (e == StateGraphEntry.Face)
+            {
+                faceInCone = false;
+                facePhaseTime = 0;
+                faceAfterburnerTime = 0;
+                if (Parent.TryGetComponent<AutopilotComponent>(out var ap))
+                {
+                    ap.PitchControl.Reset();
+                    ap.YawControl.Reset();
+                }
             }
         }
 
@@ -709,6 +729,74 @@ namespace LibreLancer.Server.Components
                     $"damage trigger: damage={damageTaken:0.#}, evadeWeight={GetStateValue(currentState, StateGraphEntry.Evade):0.###}";
                 EnterState(StateGraphEntry.Evade, $"damage trigger: {damageTaken:0.#}");
             }
+        }
+
+        private bool UpdateFaceState(
+            double time,
+            GameObject shootAt,
+            AutopilotComponent ap,
+            ShipSteeringComponent si)
+        {
+            ap.Cancel();
+
+            var engineKill = Pilot?.EngineKill;
+            var searchTime = engineKill != null && engineKill.SearchTime > 0
+                ? engineKill.SearchTime
+                : DefaultFaceSearchTime;
+            var faceTime = engineKill != null && engineKill.FaceTime > 0
+                ? engineKill.FaceTime
+                : DefaultFaceTime;
+            var maxDistance = engineKill != null && engineKill.MaxTargetDistance > 0
+                ? engineKill.MaxTargetDistance
+                : DefaultFaceMaxTargetDistance;
+            var useAfterburner = engineKill?.UseAfterburner ?? false;
+            var afterburnerTime = engineKill?.AfterburnerTime ?? 0;
+
+            var targetPoint = shootAt.PhysicsComponent?.Body.Position ?? shootAt.WorldTransform.Position;
+            var localTarget = Parent.InverseTransformPoint(targetPoint);
+            if (localTarget.LengthSquared() <= 0.000001f)
+            {
+                return true;
+            }
+
+            var localDirection = localTarget.Normalized();
+            var dot = MathHelper.Clamp(Vector3.Dot(localDirection, -Vector3.UnitZ), -1, 1);
+            var angle = MathF.Acos(dot);
+
+            if (useAfterburner &&
+                afterburnerTime > 0 &&
+                faceAfterburnerTime < afterburnerTime &&
+                angle > FaceAfterburnerAngle)
+            {
+                si.InThrottle = 1;
+                si.Thrust = true;
+                faceAfterburnerTime += time;
+                return false;
+            }
+
+            facePhaseTime += time;
+            si.InYaw = MathHelper.Clamp((float) ap.YawControl.Update(0, localDirection.X, time), -1, 1);
+            si.InPitch = MathHelper.Clamp((float) ap.PitchControl.Update(0, -localDirection.Y, time), -1, 1);
+
+            if (Vector3.DistanceSquared(targetPoint, Parent.WorldTransform.Position) >
+                maxDistance * maxDistance)
+            {
+                return true;
+            }
+
+            if (!faceInCone)
+            {
+                if (angle <= FaceSearchAngle)
+                {
+                    faceInCone = true;
+                    facePhaseTime = 0;
+                    return false;
+                }
+
+                return facePhaseTime >= searchTime;
+            }
+
+            return facePhaseTime >= faceTime;
         }
 
         public override void Update(double time, GameWorld world)
@@ -809,6 +897,8 @@ namespace LibreLancer.Server.Components
                     break;
                 }
                 case StateGraphEntry.Face:
+                    canTransition = UpdateFaceState(time, shootAt, ap, si);
+                    break;
                 case StateGraphEntry.Trail:
                     ap.GotoObject(shootAt, GotoKind.GotoNoCruise, 1, Pilot?.Trail?.Distance ?? 150);
                     canTransition = timeInState >= 5;
