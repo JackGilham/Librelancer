@@ -125,6 +125,33 @@
       <A>1</A>
     </Color>
   </Color>
+  <Color>
+    <Name>tooltip_background</Name>
+    <Color>
+      <R>0.2627451</R>
+      <G>0.38039216</G>
+      <B>0.4392157</B>
+      <A>1</A>
+    </Color>
+  </Color>
+  <Color>
+    <Name>rollover_background</Name>
+    <Color>
+      <R>0.2627451</R>
+      <G>0.2627451</G>
+      <B>0.2627451</B>
+      <A>1</A>
+    </Color>
+  </Color>
+  <Color>
+    <Name>rollover_text</Name>
+    <Color>
+      <R>0.5294118</R>
+      <G>0.7647059</G>
+      <B>0.8784314</B>
+      <A>1</A>
+    </Color>
+  </Color>
   <Model name="fullbutton_animating" path="INTERFACE/NEURONET/INVENTORY/front_button.cmp" x="0" y="0" xscale="7.8" yscale="31" xz-plane="false" />
   <Model name="hullgauge" path="INTERFACE/HUD/hud_hullgauge.3db" x="0" y="0" xscale="11.7" yscale="249" xz-plane="false" />
   <Model name="shieldgauge" path="INTERFACE/HUD/hud_shieldgauge.3db" x="0" y="0" xscale="11.7" yscale="249" xz-plane="false" />
@@ -162,6 +189,7 @@
   <Model name="news_background" path="INTERFACE/NEURONET/NEWSVENDOR/news_background.cmp" x="0" y="-0.1" xscale="1.57" yscale="2.178" xz-plane="false" />
   <Model name="hlp_window" path="INTERFACE/NEURONET/INVENTORY/hlp_window.cmp" x="0" y="0" xscale="2.62" yscale="4.18" xz-plane="false" />
   <Model name="navmap_background" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/navmap_background.cmp" x="0" y="0.03" xscale="3.23" yscale="2.91" xz-plane="false" />
+  <Model name="nav_prettymap" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/nav_prettymap.3db" x="0" y="0" xscale="3.23" yscale="4.5" xz-plane="false" />
   <Model name="nav_navmap_left" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/nav_navmap_left.cmp" x="2.87" y="0.02" xscale="5.31" yscale="3.43" xz-plane="false" />
   <Model name="nav_navmap_right" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/nav_navmap_right.cmp" x="-2.87" y="0.02" xscale="5.27" yscale="3.43" xz-plane="false" />
   <Model name="nav_universebutton" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/nav_universebutton.3db" x="0" y="0" xscale="67" yscale="67" xz-plane="false" />
@@ -172,6 +200,22 @@
   <Model name="nav_labels" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/nav_labels.3db" x="0" y="0" xscale="64" yscale="64" xz-plane="false" />
   <Model name="nav_filter_political" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/nav_filter_political.3db" x="0" y="0" xscale="64" yscale="64" xz-plane="false" />
   <Model name="nav_filter_physical" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/nav_filter_physical.3db" x="0" y="0" xscale="64" yscale="64" xz-plane="false" />
+  <Model name="nav_selector" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/nav_selector.3db" x="0" y="0" xscale="64" yscale="64" xz-plane="false" />
+  <Model name="nav_zoomin" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/nav_zoomin.cmp" x="0" y="0" xscale="72" yscale="72" xz-plane="false" />
+  <Model name="nav_zoomout" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/nav_zoomout.cmp" x="0" y="0" xscale="72" yscale="72" xz-plane="false" />
+  <Model name="nav_addwaypoint" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/nav_addwaypoint.cmp" x="0" y="0" xscale="72" yscale="72" xz-plane="false" />
+  <Model name="nav_star" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/SPACEOBJECTS/nav_star.3db" x="0" y="0" xscale="104" yscale="104" xz-plane="false" />
+  <Model name="nav_waypointdiamond" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/SPACEOBJECTS/nav_waypointdiamond.3db" x="0" y="0" xscale="35" yscale="35" xz-plane="false" />
+  <Model name="waypoint0" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/waypoint0.3db" x="0" y="0" xscale="50" yscale="72" xz-plane="false" />
+  <Model name="waypoint1" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/waypoint1.3db" x="0" y="0" xscale="50" yscale="72" xz-plane="false" />
+  <Model name="waypoint2" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/waypoint2.3db" x="0" y="0" xscale="50" yscale="72" xz-plane="false" />
+  <Model name="waypoint3" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/waypoint3.3db" x="0" y="0" xscale="50" yscale="72" xz-plane="false" />
+  <Model name="waypoint4" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/waypoint4.3db" x="0" y="0" xscale="50" yscale="72" xz-plane="false" />
+  <Model name="waypoint5" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/waypoint5.3db" x="0" y="0" xscale="50" yscale="72" xz-plane="false" />
+  <Model name="waypoint6" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/waypoint6.3db" x="0" y="0" xscale="50" yscale="72" xz-plane="false" />
+  <Model name="waypoint7" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/waypoint7.3db" x="0" y="0" xscale="50" yscale="72" xz-plane="false" />
+  <Model name="waypoint8" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/waypoint8.3db" x="0" y="0" xscale="50" yscale="72" xz-plane="false" />
+  <Model name="waypoint9" path="INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/waypoint9.3db" x="0" y="0" xscale="50" yscale="72" xz-plane="false" />
   <Model name="news_textframe" path="INTERFACE/NEURONET/NEWSVENDOR/news_textframe.3db" x="0" y="0" xscale="1.756" yscale="5.6" xz-plane="false" />
   <Model name="news_headlineframe" path="INTERFACE/NEURONET/NEWSVENDOR/news_headlineframe.3db" x="0" y="-0.125" xscale="2.8" yscale="5.2" xz-plane="false" />
   <Model name="news_videowindow" path="INTERFACE/NEURONET/NEWSVENDOR/news_videowindow.3db" x="0" y="0" xscale="5.104" yscale="6.83" xz-plane="false" />
@@ -214,7 +258,7 @@
   <Model name="nn_request.3db" path="INTERFACE/NEURONET/ICONS/nn_request.3db" x="0" y="0" xscale="67" yscale="49" xz-plane="false" />
   <Model name="chat_background" path="INTERFACE/NEURONET/CHAT/chat_background.cmp" x="0" y="0" xscale="2.125" yscale="4.9" xz-plane="false" />
   <Model name="hud_scanship" path="INTERFACE/HUD/hud_scanshipinactive.3db" x="0" y="0" xscale="64.5" yscale="64.5" xz-plane="false" />
-  <Image name="sliderarrow_up" texname="HUD_sliderarrow" type="Triangle" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
+  <Image name="sliderarrow_up" texname="HUD_sliderarrow" texpath="" type="Triangle" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0.086419754</X0>
       <Y0>0.06995885</Y0>
@@ -236,7 +280,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="sliderarrow_down" texname="HUD_sliderarrow" type="Triangle" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
+  <Image name="sliderarrow_down" texname="HUD_sliderarrow" texpath="" type="Triangle" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0.086419754</X0>
       <Y0>0.06995885</Y0>
@@ -258,7 +302,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="sliderarrow_left" texname="HUD_sliderarrow" type="Triangle" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
+  <Image name="sliderarrow_left" texname="HUD_sliderarrow" texpath="" type="Triangle" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0.086419754</X0>
       <Y0>0.06995885</Y0>
@@ -280,7 +324,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="sliderarrow_right" texname="HUD_sliderarrow" type="Triangle" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
+  <Image name="sliderarrow_right" texname="HUD_sliderarrow" texpath="" type="Triangle" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0.086419754</X0>
       <Y0>0.06995885</Y0>
@@ -302,7 +346,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="slider_middle" texname="HUD_slidertexmid" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
+  <Image name="slider_middle" texname="HUD_slidertexmid" texpath="" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0</X0>
       <Y0>0</Y0>
@@ -324,7 +368,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="slider_top" texname="HUD_slidertextopbottom" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
+  <Image name="slider_top" texname="HUD_slidertextopbottom" texpath="" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0</X0>
       <Y0>0.501</Y0>
@@ -346,7 +390,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="slider_bottom" texname="HUD_slidertextopbottom" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
+  <Image name="slider_bottom" texname="HUD_slidertextopbottom" texpath="" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0</X0>
       <Y0>0</Y0>
@@ -368,7 +412,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="hslider_middle" texname="HUD_slidertexmid" type="Normal" rot="Rotate270" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
+  <Image name="hslider_middle" texname="HUD_slidertexmid" texpath="" type="Normal" rot="Rotate270" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0</X0>
       <Y0>0</Y0>
@@ -390,29 +434,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="tgtcorner_tl" texname="HUD_targetingelement" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
-    <TexCoords>
-      <X0>0</X0>
-      <Y0>1</Y0>
-      <X1>1</X1>
-      <Y1>0</Y1>
-      <X2>0</X2>
-      <Y2>1</Y2>
-      <X3>0.248</X3>
-      <Y3>0.245</Y3>
-    </TexCoords>
-    <DisplayCoords>
-      <X0>0</X0>
-      <Y0>0</Y0>
-      <X1>1</X1>
-      <Y1>0</Y1>
-      <X2>0</X2>
-      <Y2>1</Y2>
-      <X3>1</X3>
-      <Y3>1</Y3>
-    </DisplayCoords>
-  </Image>
-  <Image name="tgtcorner_tr" texname="HUD_targetingelement" type="Normal" rot="Rotate90" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
+  <Image name="tgtcorner_tl" texname="HUD_targetingelement" texpath="" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0</X0>
       <Y0>1</Y0>
@@ -434,7 +456,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="tgtcorner_bl" texname="HUD_targetingelement" type="Normal" rot="Rotate270" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
+  <Image name="tgtcorner_tr" texname="HUD_targetingelement" texpath="" type="Normal" rot="Rotate90" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0</X0>
       <Y0>1</Y0>
@@ -456,7 +478,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="tgtcorner_br" texname="HUD_targetingelement" type="Normal" rot="Rotate180" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
+  <Image name="tgtcorner_bl" texname="HUD_targetingelement" texpath="" type="Normal" rot="Rotate270" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0</X0>
       <Y0>1</Y0>
@@ -478,7 +500,29 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="noselectarrow_outline" texname="hud_targetingelement" type="Normal" rot="None" originx="0.14" originy="0.17" angle="0.7959919" flip="false" animu="0" animv="0">
+  <Image name="tgtcorner_br" texname="HUD_targetingelement" texpath="" type="Normal" rot="Rotate180" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
+    <TexCoords>
+      <X0>0</X0>
+      <Y0>1</Y0>
+      <X1>1</X1>
+      <Y1>0</Y1>
+      <X2>0</X2>
+      <Y2>1</Y2>
+      <X3>0.248</X3>
+      <Y3>0.245</Y3>
+    </TexCoords>
+    <DisplayCoords>
+      <X0>0</X0>
+      <Y0>0</Y0>
+      <X1>1</X1>
+      <Y1>0</Y1>
+      <X2>0</X2>
+      <Y2>1</Y2>
+      <X3>1</X3>
+      <Y3>1</Y3>
+    </DisplayCoords>
+  </Image>
+  <Image name="noselectarrow_outline" texname="hud_targetingelement" texpath="" type="Normal" rot="None" originx="0.14" originy="0.17" angle="0.7959919" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0.008</X0>
       <Y0>0.501</Y0>
@@ -500,7 +544,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="selectionarrow_outline" texname="HUD_targetingelement" type="Normal" rot="None" originx="0.046" originy="0.046" angle="0.7451683" flip="false" animu="0" animv="0">
+  <Image name="selectionarrow_outline" texname="HUD_targetingelement" texpath="" type="Normal" rot="None" originx="0.046" originy="0.046" angle="0.7451683" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0.251</X0>
       <Y0>0.251</Y0>
@@ -522,7 +566,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="selectionarrow_background" texname="HUD_targetingelement" type="Normal" rot="None" originx="0.046" originy="0.046" angle="0.7451683" flip="false" animu="0" animv="0">
+  <Image name="selectionarrow_background" texname="HUD_targetingelement" texpath="" type="Normal" rot="None" originx="0.046" originy="0.046" angle="0.7451683" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0.498</X0>
       <Y0>0</Y0>
@@ -544,7 +588,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="noselectarrow_background" texname="HUD_targetingelement" type="Normal" rot="None" originx="0.139" originy="0.168" angle="0.78799856" flip="false" animu="0" animv="0">
+  <Image name="noselectarrow_background" texname="HUD_targetingelement" texpath="" type="Normal" rot="None" originx="0.139" originy="0.168" angle="0.78799856" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0.258</X0>
       <Y0>0</Y0>
@@ -566,7 +610,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="arrowimportant" texname="HUD_targetingelement" type="Normal" rot="None" originx="0.198" originy="0.158" angle="0.78799856" flip="false" animu="0" animv="0">
+  <Image name="arrowimportant" texname="HUD_targetingelement" texpath="" type="Normal" rot="None" originx="0.198" originy="0.158" angle="0.78799856" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0.749</X0>
       <Y0>0.258</Y0>
@@ -588,7 +632,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="waypoint_outline" texname="HUD_targetingelement" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
+  <Image name="waypoint_outline" texname="HUD_targetingelement" texpath="" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0.749</X0>
       <Y0>0.502</Y0>
@@ -610,7 +654,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="waypoint_background" texname="HUD_targetingelement" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
+  <Image name="waypoint_background" texname="HUD_targetingelement" texpath="" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0.749</X0>
       <Y0>0.749</Y0>
@@ -632,7 +676,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="waypoint_onscreen" texname="HUD_targetingelement" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
+  <Image name="waypoint_onscreen" texname="HUD_targetingelement" texpath="" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="false" animu="0" animv="0">
     <TexCoords>
       <X0>0.25</X0>
       <Y0>0.5</Y0>
@@ -654,7 +698,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="commstatic" texname="static" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="true" animu="7.041" animv="0">
+  <Image name="commstatic" texname="static" texpath="" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="true" animu="7.041" animv="0">
     <TexCoords>
       <X0>0</X0>
       <Y0>0</Y0>
@@ -676,7 +720,7 @@
       <Y3>1</Y3>
     </DisplayCoords>
   </Image>
-  <Image name="commbackdrop" texname="backdrop" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="true" animu="0" animv="0">
+  <Image name="commbackdrop" texname="backdrop" texpath="" type="Normal" rot="None" originx="0" originy="0" angle="0" flip="true" animu="0" animv="0">
     <TexCoords>
       <X0>0</X0>
       <Y0>0</Y0>

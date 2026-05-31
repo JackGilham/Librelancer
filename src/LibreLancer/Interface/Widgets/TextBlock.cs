@@ -119,14 +119,14 @@ namespace LibreLancer.Interface
             if (Background != null)
             {
                 foreach (var elem in Background.Elements)
-                    elem.Render(context, drawList, myRectangle);
+                    elem.Render(context, drawList, myRectangle, 1);
             }
 
             myRectangle.X += MarginX;
             myRectangle.Width -= MarginX * 2;
             var txt = txtAccess.GetText(context);
             if (!string.IsNullOrEmpty(txt))
-                DrawText(context, drawList, ref renderCache, myRectangle, TextSize, Font, TextColor, TextShadow,
+                RenderText(context, drawList, ref renderCache, myRectangle, TextSize, Font, TextColor, TextShadow,
                     HorizontalAlignment, VerticalAlignment, Clip,
                     txt, TextAlpha, Wrap);
         }

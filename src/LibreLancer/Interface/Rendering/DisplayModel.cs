@@ -20,7 +20,7 @@ namespace LibreLancer.Interface
 
     public class MaterialModification
     {
-        public static List<ModifiedMaterial> Setup(RigidModel model, ResourceManager res)
+        public static List<ModifiedMaterial> Setup(RigidModel model, ResourceManager res, bool forceTint)
         {
             var mats = new List<ModifiedMaterial>();
             foreach (var p in model.AllParts)
@@ -42,6 +42,8 @@ namespace LibreLancer.Interface
                         var mat = dc.GetMaterial(res)?.Render;
                         if (mat is BasicMaterial bm)
                         {
+                            if (!forceTint && bm.Type != "HUDIconMaterial")
+                                continue;
                             if (mats.Any(x => x.Mat == bm))
                             {
                                 continue;
@@ -63,6 +65,7 @@ namespace LibreLancer.Interface
     {
         public InterfaceModel? Model { get; set; }
         public InterfaceColor? Tint { get; set; }
+        public bool ForceTint { get; set; } = false;
 
         public Vector3 Rotate { get; set; }
         public Vector3 RotateAnimation { get; set; }
@@ -80,6 +83,18 @@ namespace LibreLancer.Interface
         private RigidModel? model;
         private bool loadable = true;
         private List<ModifiedMaterial> mats = [];
+        private bool materialsSetup;
+
+        public DisplayModel()
+        {
+        }
+
+        public DisplayModel(InterfaceModel? model, InterfaceColor? tint = null, bool forceTint = false)
+        {
+            Model = model;
+            Tint = tint;
+            ForceTint = forceTint;
+        }
 
         public static Matrix4x4 CreateTransform(int gWidth, int gHeight, Rectangle r)
         {
@@ -92,9 +107,10 @@ namespace LibreLancer.Interface
             return Matrix4x4.CreateScale(sX, sY, 1) * Matrix4x4.CreateTranslation(tX, tY, 0);
         }
 
-        private void DrawVMeshWire(UiContext context, VMeshWire wire, Matrix4x4 mat)
+        private void DrawVMeshWire(UiContext context, VMeshWire wire, Matrix4x4 mat, float alpha)
         {
             var color = (WireframeColor ?? InterfaceColor.White).GetColor(context.GlobalTime);
+            color.A *= alpha;
             var mesh = context.Data.ResourceManager.FindMesh(wire.MeshCRC);
             if (mesh != null)
             {
@@ -102,7 +118,7 @@ namespace LibreLancer.Interface
             }
         }
 
-        public override void Render(UiContext context, DrawList2D drawList, RectangleF clientRectangle)
+        public override void Render(UiContext context, DrawList2D drawList, RectangleF clientRectangle, float alpha)
         {
             if (!Enabled || Model == null)
             {
@@ -118,6 +134,13 @@ namespace LibreLancer.Interface
             if (Clip && !drawList.PushClip(rect))
             {
                 return;
+            }
+
+            var tint = Tint;
+            if (tint != null && !materialsSetup)
+            {
+                mats = MaterialModification.Setup(model!, context.Data.ResourceManager, ForceTint);
+                materialsSetup = true;
             }
 
             drawList.AddCallback(rc =>
@@ -156,17 +179,17 @@ namespace LibreLancer.Interface
                     rc.SetIdentityCamera();
                     model!.UpdateTransform();
                     model.Update(context.GlobalTime);
-                    if (Tint != null)
+                    if (tint != null)
                     {
-                        var color = Tint.GetColor(context.GlobalTime);
+                        var color = tint.GetColor(context.GlobalTime);
                         for (int i = 0; i < mats.Count; i++)
                             mats[i].Mat.Dc = color;
                     }
 
                     model.DrawImmediate(rc, context.Data.ResourceManager, transform,
-                        ref Lighting.Empty);
+                        ref Lighting.Empty, 0, null, alpha);
 
-                    if (Tint != null)
+                    if (tint != null)
                     {
                         for (int i = 0; i < mats.Count; i++)
                         {
@@ -183,7 +206,7 @@ namespace LibreLancer.Interface
                     {
                         if (part.Wireframe != null)
                         {
-                            DrawVMeshWire(context, part.Wireframe, part.LocalTransform.Matrix() * transform);
+                            DrawVMeshWire(context, part.Wireframe, part.LocalTransform.Matrix() * transform, alpha);
                         }
                     }
                     context.Lines.Render();
@@ -210,6 +233,8 @@ namespace LibreLancer.Interface
                 // HACK: Clear models on vmesh dispose
                 v = context.MeshDisposeVersion;
                 model = null;
+                mats = [];
+                materialsSetup = false;
             }
 
             if (model == null)
@@ -221,9 +246,10 @@ namespace LibreLancer.Interface
                     return false;
                 }
 
-                if (Tint != null)
+                if (Tint != null && !materialsSetup)
                 {
-                    mats = MaterialModification.Setup(model, context.Data.ResourceManager);
+                    mats = MaterialModification.Setup(model, context.Data.ResourceManager, ForceTint);
+                    materialsSetup = true;
                 }
             }
 

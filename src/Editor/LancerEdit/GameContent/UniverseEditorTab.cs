@@ -10,6 +10,7 @@ using LibreLancer.Data;
 using LibreLancer.Data.GameData;
 using LibreLancer.Data.GameData.World;
 using LibreLancer.Data.Ini;
+using LibreLancer.Data.Schema.Solar;
 using LibreLancer.Graphics;
 using LibreLancer.ImUI;
 
@@ -30,12 +31,14 @@ public class UniverseEditorTab : GameContentTab
     private MainWindow win;
     private Texture2D universeBackgroundTex;
     private ImTextureRef? universeBackgroundRegistered;
+    private Vector2 universeBackgroundUvMin = new(0, 1);
+    private Vector2 universeBackgroundUvMax = new(1, 0);
     private UniverseMap map;
 
     private PopupManager popups;
 
     private const string NAV_PRETTYMAP = "INTERFACE/NEURONET/NAVMAP/NEWNAVMAP/nav_prettymap.3db";
-    private List<(EditorSystem, EditorSystem)> connections = new List<(EditorSystem, EditorSystem)>();
+    private List<UniverseMap.Connection> connections = [];
 
 
     public UniverseEditorTab(GameDataContext gameData, MainWindow win)
@@ -51,6 +54,7 @@ public class UniverseEditorTab : GameContentTab
             universeBackgroundRegistered = ImGuiHelper.RegisterTexture(universeBackgroundTex);
         else
             universeBackgroundRegistered = null;
+
         popups = new PopupManager();
         map = new UniverseMap();
         map.OnChange += CalculateDirty;
@@ -96,27 +100,12 @@ public class UniverseEditorTab : GameContentTab
 
     void BuildConnections()
     {
-        HashSet<string> connected = new HashSet<string>();
-        connections = new List<(EditorSystem, EditorSystem)>();
-        foreach (var sys in AllSystems) {
-            foreach (var obj in sys.System.Objects) {
-                if(obj.Dock?.Kind == DockKinds.Jump &&
-                   !obj.Dock.Target.Equals(sys.System.Nickname, StringComparison.OrdinalIgnoreCase))
-                {
-                    var conn = $"{sys.System.Nickname};{obj.Dock.Target}".ToLowerInvariant();
-                    var connOther = $"{obj.Dock.Target};{sys.System.Nickname}".ToLowerInvariant();
-                    if (!connected.Contains(conn) &&
-                        !connected.Contains(connOther))
-                    {
-                        connected.Add(conn);
-                        var other = AllSystems.FirstOrDefault(x =>
-                            x.System.Nickname.Equals(obj.Dock.Target, StringComparison.OrdinalIgnoreCase));
-                        if(other != null)
-                            connections.Add((sys, other));
-                    }
-                }
-            }
-        }
+        Dictionary<string, EditorSystem> eds = new(StringComparer.OrdinalIgnoreCase);
+        foreach(var a in AllSystems)
+            eds.Add(a.System.Nickname, a);
+        connections = Data.GameData.Items.BuildConnections()
+            .Select(x => new UniverseMap.Connection(eds[x.From.Nickname], eds[x.To.Nickname], x.Legal))
+            .ToList();
     }
 
     public override void Draw(double elapsed)
@@ -163,11 +152,30 @@ public class UniverseEditorTab : GameContentTab
         ImGui.EndChild();
         ImGui.NextColumn();
         var size = (int)Math.Min(ImGui.GetWindowHeight(), ImGui.GetColumnWidth()) - 10;
-        var selected = map.Draw(
-            universeBackgroundRegistered, AllSystems,
-            Data.GameData, connections, size, size,
-            25
-        );
+        string selected = null;
+        map.Draw(
+            AllSystems,
+            Data.GameData,
+            connections,
+            [],
+            new Vector2(size, size),
+            new UniverseMap.ViewOptions
+            {
+                Id = "##universeeditmap",
+                Background = universeBackgroundRegistered,
+                BackgroundUvMin = universeBackgroundUvMin,
+                BackgroundUvMax = universeBackgroundUvMax,
+                EnablePanZoom = false,
+                ShowHelpText = false,
+                ShowLabels = false,
+                FitToSystems = false,
+                EditableSystems = true,
+                ConnectionThickness = 4f,
+                EditableNodeSize = 10f,
+                HelpText = "Double-click to open. Click+drag to move. Shift to disable snapping",
+                Tooltip = x => $"{Data.GameData.GetString(x.System.IdsName)} ({x.System.Nickname})",
+                OnDoubleClick = x => selected = x.System.Nickname
+            });
         if (!string.IsNullOrWhiteSpace(selected))
             OpenSystem(selected);
         ImGui.Columns(1);

@@ -6,6 +6,7 @@ using LibreLancer;
 using LibreLancer.Data;
 using LibreLancer.Data.IO;
 using LibreLancer.Data.Schema;
+using LibreLancer.Data.Schema.Interface;
 using LibreLancer.Infocards;
 using LibreLancer.Interface;
 using LibreLancer.Resources;
@@ -66,12 +67,36 @@ public class Project
 
         try
         {
+            new DacomIni("exe\\dacom.ini", UiData.FileSystem);
+        }
+        catch
+        {
+
+        }
+
+        try
+        {
             var navbarIni = new BaseNavBarIni(dataPath, UiData.FileSystem);
             UiData.NavbarIcons = navbarIni.Navbar;
         }
         catch (Exception)
         {
             UiData.NavbarIcons = null;
+        }
+
+        try
+        {
+            var rollover = flIni.DataPath + "interface\\rollover.ini";
+            if (UiData.FileSystem.FileExists(rollover))
+            {
+                var rolloverIni = new RolloverIni();
+                rolloverIni.AddFile(rollover, UiData.FileSystem);
+                UiData.RolloverMap = rolloverIni.Map;
+            }
+        }
+        catch
+        {
+            // ignored
         }
 
         try
