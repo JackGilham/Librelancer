@@ -606,25 +606,49 @@ namespace LibreLancer.Server.Components
         {
             var from = currentState;
             var trace = new List<string>();
+            float totalWeight = 0;
 
             foreach (var e in possible)
             {
                 var weight = GetStateValue(currentState, e);
-                var roll = random.NextSingle();
-                var selected = roll < weight;
-                trace.Add($"{e}: roll={roll:0.###}, weight={weight:0.###}, {(selected ? "selected" : "rejected")}");
-
-                if (selected)
+                if (weight > 0)
                 {
-                    EnterState(e, $"transition from {from}");
-                    lastTransitionTrace = string.Join("; ", trace);
-                    break;
+                    totalWeight += weight;
+                    trace.Add($"{e}: weight={weight:0.###}");
+                }
+                else
+                {
+                    trace.Add($"{e}: weight={weight:0.###}, ineligible");
                 }
             }
 
-            if (from == currentState)
+            if (totalWeight <= 0)
             {
-                lastTransitionTrace = trace.Count == 0 ? "no candidates" : string.Join("; ", trace);
+                lastTransitionTrace = trace.Count == 0
+                    ? "no candidates"
+                    : $"{string.Join("; ", trace)}; total=0, no transition";
+                return;
+            }
+
+            var selection = random.NextSingle() * totalWeight;
+            var remaining = selection;
+            foreach (var e in possible)
+            {
+                var weight = GetStateValue(currentState, e);
+                if (weight <= 0)
+                {
+                    continue;
+                }
+
+                if (remaining < weight)
+                {
+                    trace.Add($"weighted roll={selection:0.###}/{totalWeight:0.###}, selected={e}");
+                    EnterState(e, $"transition from {from}");
+                    lastTransitionTrace = string.Join("; ", trace);
+                    return;
+                }
+
+                remaining -= weight;
             }
         }
 
