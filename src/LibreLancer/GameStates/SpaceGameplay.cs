@@ -73,6 +73,12 @@ World Time: {12:F2}
 
         public float Velocity = 0f;
         private const float MAX_VELOCITY = 80f;
+        private const float CRUISE_CAMERA_LAG_SPEED_BAND = 150f;
+        private const float CRUISE_CAMERA_LAG_PER_BAND = 6f;
+        private const float CRUISE_CAMERA_LAG_MAX = CRUISE_CAMERA_LAG_PER_BAND * 2f;
+        private const float CRUISE_CAMERA_LAG_HALFLIFE = 0.18f;
+        private float cruiseCameraLag = 0f;
+        private float cruiseCameraLagVelocity = 0f;
         private Cursor cur_arrow = null!;
         private Cursor cur_cross = null!;
         private Cursor cur_reticle = null!;
@@ -105,7 +111,15 @@ World Time: {12:F2}
         private float maxTractorDistance;
 
         private bool crosshairHit = false;
+        private const float UserWaypointReachDistance = 100f;
         private GameObject? missionWaypoint;
+        private GameObject? userWaypoint;
+        private int userWaypointCounter;
+        private const float WaypointSelectionStartSize = 52f;
+        private const float WaypointSelectionEndSize = 150f;
+        private const double WaypointSelectionAnimationDuration = 0.18;
+        private int selectedWaypointAnimationObject;
+        private double selectedWaypointAnimationStart;
         private TargetShipWireframe targetWireframe = new();
         private double accum = 0;
 
@@ -236,6 +250,8 @@ World Time: {12:F2}
             world.AddObject(player);
             player.Register(world);
             world.Projectiles.Player = player; // For sending projectile spawns over the network
+            if (session.TryGetActiveUserWaypoint(out var userWaypointPosition))
+                ActivateUserWaypoint(userWaypointPosition, false);
             cur_arrow = Game.ResourceManager.GetCursor("arrow")!;
             cur_cross = Game.ResourceManager.GetCursor("cross")!;
             cur_reticle = Game.ResourceManager.GetCursor("fire_neutral")!;
@@ -353,15 +369,15 @@ World Time: {12:F2}
                     ui.ChatboxEvent();
                     break;
                 case InputAction.USER_TRACTOR_BEAM:
-                {
-                    TractorSelected();
-                    break;
-                }
+                    {
+                        TractorSelected();
+                        break;
+                    }
                 case InputAction.USER_COLLECT_LOOT:
-                {
-                    TractorAll();
-                    break;
-                }
+                    {
+                        TractorAll();
+                        break;
+                    }
             }
         }
 
@@ -417,7 +433,7 @@ World Time: {12:F2}
             {
                 if (distance < 1000)
                 {
-                    return $"{(int) distance}m";
+                    return $"{(int)distance}m";
                 }
                 else if (distance < 10000)
                 {
@@ -425,7 +441,7 @@ World Time: {12:F2}
                 }
                 else if (distance < 90000)
                 {
-                    return $"{((int) distance) / 1000}k";
+                    return $"{((int)distance) / 1000}k";
                 }
                 else
                 {
@@ -621,14 +637,16 @@ World Time: {12:F2}
             }
 
             public int CurrentRank => g.session.CurrentRank;
-            public double NetWorth => (double) g.session.NetWorth;
-            public double NextLevelWorth => (double) g.session.NextLevelWorth;
+            public double NetWorth => (double)g.session.NetWorth;
+            public double NextLevelWorth => (double)g.session.NextLevelWorth;
             public PlayerStats Statistics => g.session.Statistics;
             public double CharacterPlayTime => g.session.CharacterPlayTime;
 
             [WattleScriptHidden] public WidgetTemplate? Reticle;
             [WattleScriptHidden] public WidgetTemplate? UnselectedArrow;
             [WattleScriptHidden] public WidgetTemplate? SelectedArrow;
+            [WattleScriptHidden] public WidgetTemplate? Waypoint;
+            [WattleScriptHidden] public WidgetTemplate? WaypointLabel;
             [WattleScriptHidden] public int ShieldBatteries;
             [WattleScriptHidden] public int RepairKits;
 
@@ -663,6 +681,12 @@ World Time: {12:F2}
             public void SetSelectedArrowTemplate(UiWidget template, Closure callback) =>
                 SelectedArrow = new(template, callback);
 
+            public void SetWaypointTemplate(UiWidget template, Closure callback) =>
+                Waypoint = new(template, callback);
+
+            public void SetWaypointLabelTemplate(UiWidget template, Closure callback) =>
+                WaypointLabel = new(template, callback);
+
             public ContactList GetContactList() => g.contactList;
 
             public KeyMapTable GetKeyMap()
@@ -695,7 +719,7 @@ World Time: {12:F2}
             }
 
             public int CruiseCharge() => g.control.EngineState == EngineStates.CruiseCharging
-                ? (int) (g.control.ChargePercent * 100)
+                ? (int)(g.control.ChargePercent * 100)
                 : -1;
 
             public bool IsMultiplayer() => g.session.Multiplayer;
@@ -777,6 +801,23 @@ World Time: {12:F2}
                        "NULL";
             }
 
+            public bool SelectionIsWaypoint() => g.Selection.Selected?.Kind == GameObjectKind.Waypoint;
+
+            public string SelectionDistance()
+            {
+                if (g.Selection.Selected == null)
+                {
+                    return "";
+                }
+
+                var playerPosition = g.player.PhysicsComponent!.Body.Position;
+                var targetPosition = g.Selection.Selected.WorldTransform.Position;
+                var distance = Vector3.Distance(playerPosition, targetPosition);
+                return distance < 2000f
+                    ? $"{(int)distance}-M"
+                    : $"{distance / 1000f:0.0}-K";
+            }
+
             public TargetShipWireframe? SelectionWireframe() => g.Selection.Selected != null ? g.targetWireframe : null;
 
             public bool SelectionVisible()
@@ -847,8 +888,18 @@ World Time: {12:F2}
             public void PopulateNavmap(Navmap nav)
             {
                 nav.PopulateIcons(g.ui, g.sys);
+                nav.SetUniverse(g.Game.GameData.Items);
                 nav.SetVisitFunction(g.session.IsVisited);
+                nav.SetAddWaypointFunction(g.CreateUserWaypoint);
+                nav.SetPlayerPositionProvider(() => g.player.WorldTransform.Position);
+                nav.SetUserWaypointProvider(g.session.GetUserWaypointsForNavmap);
             }
+
+            public int UserWaypointCount() => g.session.UserWaypointCount;
+
+            public string UserWaypointPanelText(int index) => g.session.GetUserWaypointPanelText(index, g.sys);
+
+            public void ClearUserWaypoints() => g.ClearUserWaypoints();
 
             public ChatSource GetChats() => g.session.Chats;
             public double GetCredits() => g.session.Credits;
@@ -901,9 +952,9 @@ World Time: {12:F2}
             }
 
             public int ThrustPercent() =>
-                ((int) (g.powerCore.CurrentThrustCapacity / g.powerCore.Equip.ThrustCapacity * 100));
+                ((int)(g.powerCore.CurrentThrustCapacity / g.powerCore.Equip.ThrustCapacity * 100));
 
-            public int Speed() => ((int) g.player.PhysicsComponent!.Body.LinearVelocity.Length());
+            public int Speed() => ((int)g.player.PhysicsComponent!.Body.LinearVelocity.Length());
         }
 
         private void BehaviorChanged(AutopilotBehaviors newBehavior, AutopilotBehaviors oldBehavior)
@@ -1066,7 +1117,7 @@ World Time: {12:F2}
 
             var fraction = accum / updateInterval;
 
-            world.UpdateInterpolation((float) fraction);
+            world.UpdateInterpolation((float)fraction);
             UpdateCamera(delta);
         }
 
@@ -1094,6 +1145,45 @@ World Time: {12:F2}
 
         private bool IsSpecialCamera() => GetCurrentCamera() != activeCamera;
 
+        private static float HalfLifeToDamping(float halfLife) =>
+            2.7725887f / (halfLife + 1e-5f);
+
+        private static void CriticalSpringDamper(
+            ref float position,
+            ref float velocity,
+            float goal,
+            float halfLife,
+            float delta)
+        {
+            var y = HalfLifeToDamping(halfLife) * 0.5f;
+            var j0 = position - goal;
+            var j1 = velocity + j0 * y;
+            var eydt = (float)Math.Exp(-y * delta);
+            position = eydt * (j0 + j1 * delta) + goal;
+            velocity = eydt * (velocity - j1 * y * delta);
+        }
+
+        private float CalculateCruiseCameraLag(double delta)
+        {
+            var targetLag = 0f;
+            if (!Dead && activeCamera == _chaseCamera && !IsSpecialCamera() &&
+                control.EngineState == EngineStates.Cruise &&
+                player.PhysicsComponent?.Body != null)
+            {
+                var speed = player.PhysicsComponent.Body.LinearVelocity.Length();
+                var speedBand = MathHelper.Clamp(speed / CRUISE_CAMERA_LAG_SPEED_BAND, 0, 2);
+                targetLag = Math.Min(CRUISE_CAMERA_LAG_MAX, speedBand * CRUISE_CAMERA_LAG_PER_BAND);
+            }
+
+            CriticalSpringDamper(
+                ref cruiseCameraLag,
+                ref cruiseCameraLagVelocity,
+                targetLag,
+                CRUISE_CAMERA_LAG_HALFLIFE,
+                (float)delta);
+            return cruiseCameraLag;
+        }
+
         public override void Update(double delta)
         {
             if (loading)
@@ -1120,6 +1210,7 @@ World Time: {12:F2}
             ui.Update(Game);
             Game.TextInputEnabled = ui.KeyboardGrabbed;
             TimeDilatedUpdate(delta);
+            UpdateUserWaypointRoute();
             sysrender.Camera = GetCurrentCamera();
 
             if (frameCount < 2)
@@ -1229,8 +1320,10 @@ World Time: {12:F2}
                 }
 
                 _turretViewCamera.ChasePosition = player.LocalTransform.Position;
-                _chaseCamera.ChasePosition = player.LocalTransform.Position;
                 _chaseCamera.ChaseOrientation = Matrix4x4.CreateFromQuaternion(player.LocalTransform.Orientation);
+                var cruiseLag = CalculateCruiseCameraLag(delta);
+                var playerForward = Vector3.Transform(-Vector3.UnitZ, player.LocalTransform.Orientation);
+                _chaseCamera.ChasePosition = player.LocalTransform.Position - (playerForward * cruiseLag);
             }
 
             _turretViewCamera.Update(delta);
@@ -1247,7 +1340,7 @@ World Time: {12:F2}
             else
             {
                 Thn.Update(paused ? 0 : delta);
-                ((ThnCamera) Thn.CameraHandle).DefaultZ(); // using Thn Z here is just asking for trouble
+                ((ThnCamera)Thn.CameraHandle).DefaultZ(); // using Thn Z here is just asking for trouble
             }
         }
 
@@ -1286,8 +1379,7 @@ World Time: {12:F2}
 
             if (!(Game.Debug.CaptureMouse) && !ui.MouseWanted(Game.Mouse.X, Game.Mouse.Y))
             {
-                var newSelection = world.GetSelection(activeCamera, player, Game.Mouse.X, Game.Mouse.Y, Game.Width,
-                    Game.Height);
+                var newSelection = GetMouseSelection();
 
                 if (newSelection != null)
                 {
@@ -1408,7 +1500,7 @@ World Time: {12:F2}
             var tgt = start + (dir * 400);
 
             if (world.Physics!.PointRaycast(player.PhysicsComponent!.Body, start, dir, 1000, out var contactPoint,
-                    out var po))
+                    out _, out _))
             {
                 return contactPoint;
             }
@@ -1442,14 +1534,14 @@ World Time: {12:F2}
             {
                 if (Input.IsActionDown(InputAction.USER_INC_THROTTLE))
                 {
-                    shipInput.Throttle += (float) (delta);
+                    shipInput.Throttle += (float)(delta);
                     shipInput.Throttle = MathHelper.Clamp(shipInput.Throttle, 0, 1);
                     steering.EngineKill = false;
                 }
 
                 else if (Input.IsActionDown(InputAction.USER_DEC_THROTTLE))
                 {
-                    shipInput.Throttle -= (float) (delta);
+                    shipInput.Throttle -= (float)(delta);
                     shipInput.Throttle = MathHelper.Clamp(shipInput.Throttle, 0, 1);
                     steering.EngineKill = false;
                 }
@@ -1495,7 +1587,7 @@ World Time: {12:F2}
                 if (isTurretView)
                 {
                     _turretViewCamera.PanControls = new Vector2(
-                        2f * (mX / (float) Game.Width) - 1f, -(2f * (mY / (float) Game.Height) - 1f)
+                        2f * (mX / (float)Game.Width) - 1f, -(2f * (mY / (float)Game.Height) - 1f)
                     );
                     shipInput.MouseFlight = false;
                     _chaseCamera.MouseFlight = false;
@@ -1520,7 +1612,7 @@ World Time: {12:F2}
 
             control.CurrentStrafe = strafe;
 
-            var obj = world.GetSelection(activeCamera, player, Game.Mouse.X, Game.Mouse.Y, Game.Width, Game.Height);
+            var obj = GetMouseSelection();
 
             if (ui.MouseWanted(Game.Mouse.X, Game.Mouse.Y))
             {
@@ -1690,6 +1782,143 @@ World Time: {12:F2}
             return ScreenPosition(obj.WorldTransform.Position);
         }
 
+        private GameObject? GetMouseSelection()
+        {
+            return GetWaypointScreenSelection(Game.Mouse.X, Game.Mouse.Y) ??
+                   world.GetSelection(activeCamera, player, Game.Mouse.X, Game.Mouse.Y, Game.Width, Game.Height);
+        }
+
+        private GameObject? GetWaypointScreenSelection(float mouseX, float mouseY)
+        {
+            GameObject? result = null;
+            var bestDistance = float.MaxValue;
+            var playerPosition = player.PhysicsComponent!.Body.Position;
+            foreach (var obj in world.Objects)
+            {
+                if (obj.Kind != GameObjectKind.Waypoint)
+                {
+                    continue;
+                }
+
+                var (pos, visible) = ScreenPosition(obj);
+                if (!visible)
+                {
+                    continue;
+                }
+
+                var distance = Vector3.Distance(playerPosition, obj.WorldTransform.Position);
+                var pickRadius = MathHelper.Clamp(distance / 220f, 18f, 90f);
+                var mouseDistance = Vector2.Distance(new Vector2(mouseX, mouseY), pos);
+                if (mouseDistance <= pickRadius && mouseDistance < bestDistance)
+                {
+                    result = obj;
+                    bestDistance = mouseDistance;
+                }
+            }
+
+            return result;
+        }
+
+        private void RemoveUserWaypoint()
+        {
+            if (userWaypoint == null)
+            {
+                return;
+            }
+
+            if (Selection.Selected == userWaypoint)
+            {
+                Selection.Selected = null;
+            }
+
+            world.RemoveObject(userWaypoint);
+            userWaypoint = null;
+        }
+
+        private void ClearUserWaypoints()
+        {
+            session.ClearUserWaypoints();
+            RemoveUserWaypoint();
+        }
+
+        private void CreateUserWaypoint(Vector3 pos)
+        {
+            session.AddUserWaypoint(pos);
+            if (userWaypoint != null)
+                return;
+
+            ActivateUserWaypoint(pos, false);
+        }
+
+        private void ActivateUserWaypoint(Vector3 pos, bool continueGoto)
+        {
+            var waypointArch = Game.GameData.Items.Archetypes.Get("waypoint")!;
+            userWaypoint = new GameObject(waypointArch, null, Game.ResourceManager)
+            {
+                Nickname = $"user_waypoint_{userWaypointCounter++}",
+                Name = new ObjectName(1090) // Waypoint
+            };
+            userWaypoint.SetLocalTransform(new Transform3D(pos, Quaternion.Identity));
+            world.AddObject(userWaypoint);
+            userWaypoint.Register(world);
+
+            Selection.Selected = userWaypoint;
+            if (continueGoto)
+            {
+                pilotComponent!.GotoObject(userWaypoint, GotoKind.Goto);
+            }
+        }
+
+        private void UpdateUserWaypointRoute()
+        {
+            if (paused || Dead || userWaypoint == null)
+            {
+                return;
+            }
+
+            var playerPosition = player.WorldTransform.Position;
+            var waypointPosition = userWaypoint.WorldTransform.Position;
+            if (Vector3.Distance(playerPosition, waypointPosition) > UserWaypointReachDistance)
+            {
+                return;
+            }
+
+            // found it interesting that it could
+            // follow the next waypoint if the player is on goto mode, which could be convenient
+            // so their ship doesnt stop at the waypoints. False for now since its not vanilla,
+            // left it here because its interesting for testing.
+            const bool continueGoto = false;
+            RemoveUserWaypoint();
+            session.RemoveActiveUserWaypoint();
+            if (session.TryGetActiveUserWaypoint(out var nextPosition))
+            {
+                ActivateUserWaypoint(nextPosition, continueGoto);
+            }
+        }
+
+        private void UpdateWaypointRenderStyle()
+        {
+            var playerPosition = player.PhysicsComponent!.Body.Position;
+            foreach (var obj in world.Objects)
+            {
+                if (obj.Kind != GameObjectKind.Waypoint)
+                {
+                    continue;
+                }
+
+                var selected = obj == Selection.Selected;
+                var distance = Vector3.Distance(playerPosition, obj.WorldTransform.Position);
+                var scale = selected ? MathHelper.Clamp(distance / 5000f, 1.5f, 18f) : 1f;
+                if (obj.RenderComponent is ModelRenderer renderer)
+                {
+                    renderer.RenderScale = scale;
+                    renderer.NoFog = selected;
+                    renderer.ColorOverride = new Color4(0.55f, 0f, 1f, 1f);
+                    renderer.Spin = new Vector3(0f, 5f, 0f);
+                }
+            }
+        }
+
         private void UpdateObjectiveObjects()
         {
             if (missionWaypoint != null)
@@ -1731,7 +1960,7 @@ World Time: {12:F2}
         {
             float size = 14;
             float ratio = (Game.Height / 480f);
-            return (int) (size * ratio);
+            return (int)(size * ratio);
         }
 
         private bool showObjectList = false;
@@ -1754,14 +1983,14 @@ World Time: {12:F2}
                 // Viewport FOV calculations unaffected by letterboxing
                 Game.RenderContext.ClearColor = Color4.Black;
                 Game.RenderContext.ClearAll();
-                var newRatio = ((double) Game.Width / Game.Height) * 1.39;
+                var newRatio = ((double)Game.Width / Game.Height) * 1.39;
                 var newHeight = Game.Width / newRatio;
                 var diff = (Game.Height - newHeight);
                 var vp = Game.RenderContext.CurrentViewport;
-                vp.Y = (int) (vp.Y + (diff / 2));
-                vp.Height = (int) (vp.Height - (diff));
+                vp.Y = (int)(vp.Y + (diff / 2));
+                vp.Height = (int)(vp.Height - (diff));
                 Game.RenderContext.PushViewport(vp.X, vp.Y, vp.Width, vp.Height);
-                Thn.UpdateViewport(Game.RenderContext.CurrentViewport, (float) Game.Width / Game.Height);
+                Thn.UpdateViewport(Game.RenderContext.CurrentViewport, (float)Game.Width / Game.Height);
             }
 
             if (Selection.Selected != null)
@@ -1771,6 +2000,33 @@ World Time: {12:F2}
                     Vector3.Transform(Vector3.UnitZ * 4, player.LocalTransform.Matrix()), Vector3.UnitY);
 
                 targetWireframe.Matrix = (lookAt * Selection.Selected.LocalTransform.Matrix()).ClearTranslation();
+                targetWireframe.ChildModels.Clear();
+
+                foreach (var child in Selection.Selected.Children)
+                {
+                    if (child.Model == null ||
+                        !GameObject.IsCargoPodChild(child))
+                    {
+                        continue;
+                    }
+
+                    var childMatrix = child.LocalTransform.Matrix();
+                    if (child.Attachment != null)
+                    {
+                        childMatrix *= child.Attachment.Transform.Matrix();
+                    }
+
+                    var healthPct = 1f;
+                    if (child.TryGetComponent<CHealthComponent>(out var health) && health.MaxHealth > 0)
+                    {
+                        healthPct = MathHelper.Clamp(health.CurrentHealth / health.MaxHealth, 0, 1);
+                    }
+
+                    targetWireframe.ChildModels.Add(new TargetShipWireframe.ChildModel(
+                        child.Model.RigidModel,
+                        childMatrix * targetWireframe.Matrix,
+                        healthPct));
+                }
             }
 
             if (updateStartDelay > 0)
@@ -1788,6 +2044,7 @@ World Time: {12:F2}
                 waitObjectiveFrames--;
             }
 
+            UpdateWaypointRenderStyle();
             world.RenderUpdate(delta);
             sysrender.DebugRenderer.StartFrame(Game.RenderContext);
 
@@ -1798,8 +2055,8 @@ World Time: {12:F2}
             if (GetCrosshair(out var crosshairScreen, out _))
             {
                 var sz = CrosshairSize();
-                var r0 = new Rectangle((int) (crosshairScreen.X - sz / 2), (int) crosshairScreen.Y, sz, 1);
-                var r1 = new Rectangle((int) crosshairScreen.X, (int) crosshairScreen.Y - (sz / 2), 1, sz);
+                var r0 = new Rectangle((int)(crosshairScreen.X - sz / 2), (int)crosshairScreen.Y, sz, 1);
+                var r1 = new Rectangle((int)crosshairScreen.X, (int)crosshairScreen.Y - (sz / 2), 1, sz);
                 var dl = Game.RenderContext.Renderer2D.CreateDrawList();
                 dl.FillRectangle(r0, Color4.Red);
                 dl.FillRectangle(r1, Color4.Red);
@@ -1857,6 +2114,8 @@ World Time: {12:F2}
                     sys.Nickname, systemName, DebugDrawing.SizeSuffix(GC.GetTotalMemory(false)), Velocity, selObj,
                     control.Steering.X, control.Steering.Y, control.Steering.Z, mouseFlight, session.WorldTime);
                 ImGui.Text(text);
+                ImGui.Text($"Player Position: {player.WorldTransform.Position}");
+                ImGui.InputFloat("FOV Value", ref _chaseCamera.FovX);
                 ImGui.Text($"crosshairHit: {crosshairHit}");
                 var dbgT = session.GetSelectedDebugInfo();
 
@@ -2024,6 +2283,33 @@ World Time: {12:F2}
 
         }
 
+        private void DrawWaypoint(GameObject obj, Vector2 pos, UiContext context, DrawList2D drawList, RectangleF parentRectangle, bool selected)
+        {
+            var size = WaypointSelectionStartSize;
+            if (selected)
+            {
+                if (selectedWaypointAnimationObject != obj.Unique)
+                {
+                    selectedWaypointAnimationObject = obj.Unique;
+                    selectedWaypointAnimationStart = Game.TotalTime;
+                }
+
+                var t = MathHelper.Clamp(
+                    (float)((Game.TotalTime - selectedWaypointAnimationStart) / WaypointSelectionAnimationDuration),
+                    0f,
+                    1f
+                );
+                size = MathHelper.Lerp(WaypointSelectionStartSize, WaypointSelectionEndSize, t);
+            }
+            var alpha = selected ? 1f : 0.85f;
+            uiApi.Waypoint?.Draw(
+                context, drawList, parentRectangle,
+                ui.PixelsToPoints(pos.X) - (size / 2f),
+                ui.PixelsToPoints(pos.Y) - (size / 2f),
+                size, alpha
+            );
+        }
+
         private void IndicatorLayerOnRender(UiContext context, DrawList2D drawList, RectangleF parentRectangle)
         {
             foreach (var obj in world.Objects)
@@ -2048,6 +2334,24 @@ World Time: {12:F2}
                     }
 
                 }
+                else if (obj.Kind == GameObjectKind.Waypoint)
+                {
+                    var (pos, visible) = ScreenPosition(obj);
+
+                    if (visible)
+                    {
+                        DrawWaypoint(obj, pos, context, drawList, parentRectangle, false);
+                        uiApi.WaypointLabel?.Draw(
+                            context, drawList, parentRectangle,
+                            ui.PixelsToPoints(pos.X) - 45f,
+                            ui.PixelsToPoints(pos.Y) - (WaypointSelectionStartSize / 2f) - 17f
+                        );
+                    }
+                    else
+                    {
+                        DrawUnselectedArrow(obj, pos, context, drawList, parentRectangle);
+                    }
+                }
                 else if ((obj.Flags & GameObjectFlags.Hostile) == GameObjectFlags.Hostile ||
                          (obj.Flags & GameObjectFlags.Important) == GameObjectFlags.Important)
                 {
@@ -2060,17 +2364,25 @@ World Time: {12:F2}
                 }
             }
 
-            if (Selection.Selected == null)
+            var selected = Selection.Selected;
+            if (selected == null)
             {
+                selectedWaypointAnimationObject = 0;
                 return;
             }
 
+            var (selectedPos, selectedVisible) = ScreenPosition(selected);
+            if (selectedVisible && selected.Kind == GameObjectKind.Waypoint)
             {
-                var (pos, visible) = ScreenPosition(Selection.Selected);
+                DrawWaypoint(selected, selectedPos, context, drawList, parentRectangle, true);
+            }
+            else
+            {
+                selectedWaypointAnimationObject = 0;
 
-                if (!visible)
+                if (!selectedVisible)
                 {
-                    DrawSelectedArrow(Selection.Selected, pos, context, drawList, parentRectangle);
+                    DrawSelectedArrow(selected, selectedPos, context, drawList, parentRectangle);
                 }
             }
         }

@@ -21,6 +21,8 @@ namespace LibreLancer.Interface
         public float TextSize { get; set; }
         public string? FontFamily { get; set; }
 
+        public bool DrawText { get; set; } = true;
+
         public float MarginLeft { get; set; }
 
         public float MarginRight { get; set; }
@@ -131,9 +133,15 @@ namespace LibreLancer.Interface
             ButtonAppearance? activeStyle = null;
             var myRectangle = GetMyRectangle(context, parentRectangle);
 
+            string txt = GetText(context);
+
             if (myRectangle.Contains(context.MouseX, context.MouseY))
             {
                 activeStyle = style?.Hover;
+                if (!DrawText && !string.IsNullOrWhiteSpace(txt))
+                {
+                    context.SetTooltip(txt, myRectangle);
+                }
             }
             else
             {
@@ -142,6 +150,10 @@ namespace LibreLancer.Interface
             if (HeldDown)
             {
                 activeStyle = style?.Pressed ?? style?.Hover;
+            }
+            else if (Hovered && Strid != 0)
+            {
+                context.SetRollover(Strid);
             }
 
             if (Selected) activeStyle = style?.Selected;
@@ -152,9 +164,7 @@ namespace LibreLancer.Interface
             float mLeft = Cascade(style?.Normal?.MarginLeft, activeStyle?.MarginLeft, MarginLeft);
             float mRight = Cascade(style?.Normal?.MarginRight, activeStyle?.MarginRight, MarginRight);
 
-            var txt = GetText(context);
-
-            if (!string.IsNullOrEmpty(txt) && !string.IsNullOrWhiteSpace(txt))
+            if (DrawText && !string.IsNullOrWhiteSpace(txt))
             {
                 var textRect = myRectangle;
                 textRect.X += mLeft;
@@ -165,7 +175,7 @@ namespace LibreLancer.Interface
                     drawList.DrawRectangle(context.PointsToPixels(textRect), Color4.Aqua, 1);
                 }
 
-                DrawText(
+                RenderText(
                     context,
                     drawList,
                     ref textCache,
@@ -209,7 +219,8 @@ namespace LibreLancer.Interface
 
             if (myRect.Contains(context.MouseX, context.MouseY))
             {
-                var sound = MouseDownSound ?? style?.MouseDownSound;
+                // While we don't have better cascade
+                var sound = MouseDownSound ?? style?.MouseDownSound ?? "ui_select_item";
 
                 if (!string.IsNullOrWhiteSpace(sound))
                 {

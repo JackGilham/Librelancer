@@ -493,6 +493,7 @@ namespace LibreLancer.World
 
                 foreach (var hp in destroyed.Hardpoints)
                 {
+                    PhysicsComponent?.DeactivateHardpoint(hp);
                     for (int i = 0; i < components.Count; i++)
                     {
                         components[i].HardpointDestroyed(hp);
@@ -646,6 +647,40 @@ namespace LibreLancer.World
                         type, item.Hardpoint ?? "internal", item.Equipment);
                 }
             }
+
+            foreach (var cargo in loadout.Cargo.Where(x => !string.IsNullOrWhiteSpace(x.Hardpoint)))
+            {
+                foreach (var child in Children)
+                {
+                    if (!cargo.Hardpoint!.Equals(child.Attachment?.Name, StringComparison.OrdinalIgnoreCase) ||
+                        !child.TryGetComponent<CargoPodComponent>(out var pod))
+                    {
+                        continue;
+                    }
+
+                    pod.Cargo.Add(new BasicCargo(cargo.Item, cargo.Count));
+                }
+            }
+        }
+
+        public bool RemoveEquipment(string hardpoint, GameWorld world)
+        {
+            for (int i = Children.Count - 1; i >= 0; i--)
+            {
+                var child = Children[i];
+                if (!hardpoint.Equals(child.Attachment?.Name, StringComparison.OrdinalIgnoreCase) ||
+                    !child.TryGetComponent<EquipmentComponent>(out var equipment))
+                {
+                    continue;
+                }
+
+                HardpointHulls.Deactivate(equipment);
+                child.Unregister(world);
+                Children.RemoveAt(i);
+                return true;
+            }
+
+            return false;
         }
 
         public bool TryGetFirstChildComponent<T>([MaybeNullWhen(false)] out T result) where T : GameComponent
@@ -782,7 +817,9 @@ namespace LibreLancer.World
 
         public void RenderUpdate(double time)
         {
-            RenderComponent?.Update(time, WorldTransform.Position, WorldTransform.Matrix());
+            var world = WorldTransform.Matrix();
+
+            RenderComponent?.Update(time, WorldTransform.Position, world);
 
             for (int i = 0; i < Children.Count; i++)
             {
@@ -791,7 +828,7 @@ namespace LibreLancer.World
 
             foreach (var child in ExtraRenderers)
             {
-                child.Update(time, WorldTransform.Position, WorldTransform.Matrix());
+                child.Update(time, WorldTransform.Position, world);
             }
         }
 
@@ -885,10 +922,48 @@ namespace LibreLancer.World
             {
                 return null;
             }
-
             Model.TryGetHardpoint(hpname, out var hardpoint);
             return hardpoint;
         }
+
+        public Hardpoint? GetHardpoint(uint crc)
+        {
+            if (Model == null)
+            {
+                return null;
+            }
+            Model.TryGetHardpoint(crc, out var hardpoint);
+            return hardpoint;
+        }
+
+        public GameObject? GetHardpointChild(Hardpoint? hardpoint, Func<GameObject, bool>? predicate = null)
+        {
+            if (hardpoint == null)
+            {
+                return null;
+            }
+            foreach (var child in Children)
+            {
+                if (!ReferenceEquals(child.Attachment, hardpoint) &&
+                    !hardpoint.Name.Equals(child.Attachment?.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (predicate == null || predicate(child))
+                {
+                    return child;
+                }
+            }
+            return null;
+        }
+
+        public GameObject? GetCargoPodChild(Hardpoint? hardpoint) =>
+            GetHardpointChild(hardpoint, IsCargoPodChild);
+
+        public static bool IsCargoPodChild(GameObject child) =>
+            child.TryGetComponent<EquipmentComponent>(out var equipment) &&
+            equipment.Equipment is CargoPodEquipment;
 
         public Vector3 InverseTransformPoint(Vector3 input) => WorldTransform.InverseTransform(input);
 

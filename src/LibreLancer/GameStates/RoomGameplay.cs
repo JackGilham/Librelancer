@@ -308,7 +308,20 @@ namespace LibreLancer
             public void PopulateNavmap(Navmap navmap)
             {
                 navmap.PopulateIcons(g.ui, g.starSystem);
+                navmap.SetUniverse(g.Game.GameData.Items);
                 navmap.SetVisitFunction(g.session.IsVisited);
+                navmap.SetAddWaypointFunction(null);
+                navmap.SetPlayerPositionProvider(null);
+                navmap.SetUserWaypointProvider(g.session.GetUserWaypointsForNavmap);
+            }
+
+            public int UserWaypointCount() => g.session.UserWaypointCount;
+
+            public string UserWaypointPanelText(int index) => g.session.GetUserWaypointPanelText(index, g.starSystem);
+
+            public void ClearUserWaypoints()
+            {
+                g.session.ClearUserWaypoints();
             }
 
             private bool IsVisited(uint hash)
@@ -438,6 +451,7 @@ namespace LibreLancer
 
                 if (ct.Encounters[0].Autoplay)
                 {
+                    NotifyAutoplayCharacterSelect(ct);
                     PlayScript(ct, CutsceneState.Regular);
                 }
                 else
@@ -452,6 +466,26 @@ namespace LibreLancer
             }
 
             return false;
+        }
+
+        private void NotifyAutoplayCharacterSelect(StoryCutsceneIni cutscene)
+        {
+            var encounter = cutscene.Encounters[0];
+            var character = cutscene.Chars.FirstOrDefault();
+            var location = encounter.Location;
+
+            if (character == null || location == null || location.Length < 2)
+            {
+                return;
+            }
+
+            var name = character.Actor ?? character.Npc;
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return;
+            }
+
+            session.RpcServer.StoryNPCSelect(name, location[1], location[0]);
         }
 
         private enum CutsceneState

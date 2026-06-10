@@ -54,6 +54,8 @@ public partial class CGameSession : IClientPlayer
     public List<NetCargo> Items = [];
 
     private PlayerInventory lastInventory = new();
+    private string? currentBase;
+    private string? currentRoom;
     public long NetWorth;
 
     private string? newPlayerStr;
@@ -211,10 +213,8 @@ public partial class CGameSession : IClientPlayer
         NetWorth = (long)lastInventory.NetWorth;
         SetSelfLoadout(lastInventory.Loadout);
 
-        if (OnUpdateInventory == null)
-            return;
-
-        uiActions.Enqueue(OnUpdateInventory);
+        if (OnUpdateInventory != null)
+            uiActions.Enqueue(OnUpdateInventory);
 
         if (spaceGameplay == null && OnUpdatePlayerShip != null)
             uiActions.Enqueue(OnUpdatePlayerShip);
@@ -364,6 +364,15 @@ public partial class CGameSession : IClientPlayer
 
     public void RoomEntered(string room, string bse)
     {
+        if (currentRoom != null && currentBase != null &&
+            (!currentRoom.Equals(room, StringComparison.OrdinalIgnoreCase) ||
+             !currentBase.Equals(bse, StringComparison.OrdinalIgnoreCase)))
+        {
+            RpcServer.OnLocationExit(currentBase, currentRoom);
+        }
+
+        currentRoom = room;
+        currentBase = bse;
         RpcServer.OnLocationEnter(bse, room);
     }
 

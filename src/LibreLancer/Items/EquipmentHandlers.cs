@@ -21,10 +21,12 @@ public static class EquipmentHandlers
 
         EquipmentObjectManager.RegisterType<CloakEquipment>(Cloak);
         EquipmentObjectManager.RegisterType<CountermeasureEquipment>(Countermeasure);
+        EquipmentObjectManager.RegisterType<CargoPodEquipment>(CargoPod);
         EquipmentObjectManager.RegisterType<EffectEquipment>(Effect);
         EquipmentObjectManager.RegisterType<EngineEquipment>(Engine);
         EquipmentObjectManager.RegisterType<GunEquipment>(Gun);
         EquipmentObjectManager.RegisterType<LightEquipment>(Light);
+        EquipmentObjectManager.RegisterType<MineDropperEquipment>(MineDropper);
         EquipmentObjectManager.RegisterType<MissileLauncherEquipment>(MissileLauncher);
         EquipmentObjectManager.RegisterType<PowerEquipment>(Power);
         EquipmentObjectManager.RegisterType<ScannerEquipment>(Scanner);
@@ -32,6 +34,38 @@ public static class EquipmentHandlers
         EquipmentObjectManager.RegisterType<ThrusterEquipment>(Thruster);
         EquipmentObjectManager.RegisterType<TractorEquipment>(Tractor);
         EquipmentObjectManager.RegisterType<TradelaneEquipment>(Tradelane);
+    }
+
+    private static GameObject CargoPod(GameObject parent, ResourceManager res, SoundManager? snd,
+        EquipmentType type, string? hardpoint, Equipment equip)
+    {
+        var pod = (CargoPodEquipment) equip;
+        var obj = GameObject.WithModel(pod.ModelFile!, type != EquipmentType.Server, res);
+        var hitpoints = pod.Hitpoints > 0 ? pod.Hitpoints : 1;
+
+        if (type == EquipmentType.Server)
+        {
+            obj.AddComponent(new SHealthComponent(obj)
+            {
+                MaxHealth = hitpoints,
+                CurrentHealth = hitpoints
+            });
+            obj.AddComponent(new CargoPodComponent(obj));
+        }
+        else
+        {
+            obj.AddComponent(new CHealthComponent(obj)
+            {
+                MaxHealth = hitpoints,
+                CurrentHealth = hitpoints
+            });
+            if (pod.Explosion != null)
+            {
+                obj.AddComponent(new CExplosionComponent(obj, pod.Explosion));
+            }
+        }
+
+        return obj;
     }
 
     private static GameObject Countermeasure(GameObject parent, ResourceManager res, SoundManager? snd,
@@ -154,6 +188,14 @@ public static class EquipmentHandlers
             type != EquipmentType.Cutscene)
             child.AddComponent(new MissileLauncherComponent(child, gn));
         snd?.LoadSound(gn.Munition.Def.OneShotSound);
+        return child;
+    }
+
+    private static GameObject MineDropper(GameObject parent, ResourceManager res, SoundManager? snd,
+        EquipmentType type, string? hardpoint, Equipment equip)
+    {
+        var md = (MineDropperEquipment) equip;
+        var child = GameObject.WithModel(md.ModelFile!, type != EquipmentType.Server, res);
         return child;
     }
 

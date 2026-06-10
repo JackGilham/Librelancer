@@ -14,7 +14,9 @@ class shipdealer : shipdealer_Designer with ChildWindow
 			PlaySound('ui_item_select');
 			e.pship_list.SelectedIndex = -1
 			e.start_buy.Visible = true
-			this.PreviewShip(this.Ships[e.tship_list.SelectedIndex + 1])
+			local ship = this.Ships[e.tship_list.SelectedIndex + 1]
+			this.PreviewShip(ship)
+			this.UpdateStartBuy(ship)
 		});
 		e.pship_list.OnSelectedIndexChanged(() => {
 			PlaySound('ui_item_select');
@@ -34,11 +36,11 @@ class shipdealer : shipdealer_Designer with ChildWindow
 			commodity = e.category_commodity
 		};
 
-		e.category_weapons.OnClick(() => { PlaySound("ui_item_select"); this.change_category("weapons"); })
-		e.category_ammo.OnClick(() => { PlaySound("ui_item_select"); this.change_category("ammo"); })
-		e.category_internal.OnClick(() => { PlaySound("ui_item_select"); this.change_category("internal"); })
-		e.category_external.OnClick(() => { PlaySound("ui_item_select"); this.change_category("external"); })
-		e.category_commodity.OnClick(() => { PlaySound("ui_item_select"); this.change_category("commodity"); })
+		e.category_weapons.OnClick(() => this.change_category("weapons"))
+		e.category_ammo.OnClick(() => this.change_category("ammo"))
+		e.category_internal.OnClick(() => this.change_category("internal"))
+		e.category_external.OnClick(() => this.change_category("external"))
+		e.category_commodity.OnClick(() => this.change_category("commodity"))
 
 		e.inv_list.OnSelectedIndexChanged(() => {
 			this.set_buysell("sell")
@@ -97,7 +99,9 @@ class shipdealer : shipdealer_Designer with ChildWindow
 				Icon = item.Icon,
 				IdsName = item.IdsName,
 				IdsHardpoint = ShipClassNames[item.ShipClass + 1],
-				Price = item.Price
+				Price = item.Price,
+				Rank = item.Rank,
+				Compatible = true
 			}, "ship", false)
 			e.tship_list.Children.Add(li)
 		}
@@ -107,10 +111,15 @@ class shipdealer : shipdealer_Designer with ChildWindow
 				Icon = pship.Icon,
 				IdsName = pship.IdsName,
 				IdsHardpoint = ShipClassNames[pship.ShipClass + 1],
-				Price = pship.Price
+				Price = pship.Price,
+				Compatible = true
 			}, "ship", false))
 		}
 		e.item_infocard.Infocard = nil
+		e.shiplist_credits_text.Text = StringFromID(STRID_CREDITS) + NumberToStringCS(Game.GetCredits(), "N0")
+		e.start_buy.Strid = STRID_SHIP_BUY
+		e.start_buy.Enabled = true
+		e.cant_buy_text.Visible = false
 	}
 
 	OnShipPurchaseBegin()
@@ -172,7 +181,12 @@ class shipdealer : shipdealer_Designer with ChildWindow
 		}
 		local str = StringFromID(STRID_CREDITS) + NumberToStringCS(Game.GetCredits(), "N0")
 		e.credits_text.Text = str
-		e.ship_price_text.Text = StringFromID(STRID_SHIP_PRICE) + NumberToStringCS(Game.ShipDealer.GetShipDisplayPrice(), "N0")
+		local displayPrice = Game.ShipDealer.GetShipDisplayPrice()
+		if (displayPrice < 0) {
+			e.ship_price_text.Text = StringFromID(STRID_ADD_CREDITS) + NumberToStringCS(-displayPrice, "N0")
+		} else {
+			e.ship_price_text.Text = StringFromID(STRID_SHIP_PRICE) + NumberToStringCS(displayPrice, "N0")
+		}
 		if (this.BuyState == "sell" && this.PlayerGoods.length == 0)
 			this.set_buysell("hidden");
 		e.inv_list.SelectedIndex = e.inv_list.SelectedIndex // Needs to update after changing list
@@ -234,11 +248,35 @@ class shipdealer : shipdealer_Designer with ChildWindow
 			iprev.Visible = false
 			local cneed = Game.ShipDealer.GetRequiredCredits()
 			if (cneed > 0) {
-				e.credits_needed_text.SetString(string.format(StringFromID(STRID_SHIP_NEEDMONEY), StringFromID(STRID_CREDIT_SIGN) + cneed), "$Normal", 22)
+				e.credits_needed_text.SetString(string.format(StringFromID(STRID_SHIP_NEEDMONEY), StringFromID(STRID_CREDIT_SIGN) + NumberToStringCS(cneed, "N0")), "$Normal", 22)
 				e.credits_needed_text.Visible = true
 			} else {
+				e.buy_ship.Strid = STRID_SHIP_PURCHASE
+				e.buy_ship.Enabled = true
 				e.buy_ship.Visible = true
 			}
+		}
+	}
+
+	UpdateStartBuy(ship)
+	{
+		local e = this.Elements
+		local reason = Game.ShipDealer.GetShipPurchaseBlockReason(ship)
+		e.cant_buy_text.Strid = 0
+		e.cant_buy_text.Text = nil
+		if (reason == "") {
+			e.start_buy.Strid = STRID_SHIP_BUY
+			e.start_buy.Enabled = true
+			e.start_buy.Visible = true
+			e.cant_buy_text.Visible = false
+		} else {
+			e.start_buy.Visible = false
+			if (reason == "rank") {
+				e.cant_buy_text.Text = FormatStringID(STRID_SHIP_LEVEL_REQUIRED, ship.Rank)
+			} else {
+				e.cant_buy_text.Strid = STRID_SHIP_CANNOT_BUY
+			}
+			e.cant_buy_text.Visible = true
 		}
 	}
 

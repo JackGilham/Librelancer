@@ -60,9 +60,11 @@ namespace LibreLancer.Server.Components
             Parent.GetComponent<SelectedTargetComponent>()!.Selected = tgt;
         }
 
-        public void SetState(AiState state, GameWorld world)
+        public void SetState(AiState? state, GameWorld world)
         {
             this.CurrentDirective = state;
+            lastStateChangeReason = state == null ? "directive cleared" : $"directive set: {state.GetDebugInfo()}";
+            lastBlockReason = state == null ? "none" : "directive active";
             state?.OnStart(Parent, world, this);
         }
 
@@ -442,7 +444,6 @@ namespace LibreLancer.Server.Components
             Parent.GetComponent<SelectedTargetComponent>()!.Selected = shootAt;
             return shootAt;
         }
-
         public void FireAtTarget(GameObject shootAt, double time, GameWorld world)
         {
             if (!Parent.TryGetComponent<WeaponControlComponent>(out var weapons))
@@ -491,6 +492,13 @@ namespace LibreLancer.Server.Components
                 }
             }
         }
+        private StateGraphEntry currentState = StateGraphEntry.NULL;
+        private StateGraphEntry previousState = StateGraphEntry.NULL;
+
+        private double timeInState = 0;
+        private string lastTransitionTrace = "none";
+        private string lastStateChangeReason = "initial";
+        private string lastBlockReason = "none";
 
         public string GetDebugInfo()
         {
@@ -541,6 +549,17 @@ namespace LibreLancer.Server.Components
             {
                 beh = ap.CurrentBehavior;
             }
+
+            var directive = CurrentDirective?.GetDebugInfo() ?? "null";
+            var directiveRunnerActive = Parent.TryGetComponent<DirectiveRunnerComponent>(out var directiveRunner) && directiveRunner.Active;
+            var selectedTarget = Parent.GetComponent<SelectedTargetComponent>()?.Selected;
+            var target = selectedTarget ?? lastShootAt;
+            var targetLabel = target == null ? "none" : string.IsNullOrWhiteSpace(target.Nickname) ? $"#{target.NetID}" : $"{target.Nickname} #{target.NetID}";
+            var graphWeights =
+                $"Face={GetStateValue(currentState, StateGraphEntry.Face):0.###}, " +
+                $"Trail={GetStateValue(currentState, StateGraphEntry.Trail):0.###}, " +
+                $"Buzz={GetStateValue(currentState, StateGraphEntry.Buzz):0.###}, " +
+                $"Evade={GetStateValue(currentState, StateGraphEntry.Evade):0.###}";
 
             // Show accuracy info for debugging
             float npcPower = Pilot?.Gun?.FireAccuracyPowerNpc ?? 0;

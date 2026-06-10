@@ -12,11 +12,11 @@
 	<TextBlock TextColor="text" TextShadow="#000000FF" X="4" Y="33" Width="200" Height="20" Text="CREDITS $1,845" TextSize="11" id="credits_text" /> <!-- CREDITS -->
 	<TextBlock TextColor="text" TextShadow="#000000FF" X="410" Y="33" Width="200" Height="20" Text="SHIP PRICE $1,977" TextSize="11" id="ship_price_text" /> <!-- SHIP PRICE-->
 	<Panel id="inv_categories">
-		<Button X="101" Y="223" id="category_weapons" Style="inv_category_weapons"/>
-		<Button X="118" Y="223" id="category_ammo" Style="inv_category_ammo"/>
-		<Button X="135" Y="223" id="category_external" Style="inv_category_external"/>
-		<Button X="153" Y="223" id="category_internal" Style="inv_category_internal"/>
-		<Button X="171" Y="223" id="category_commodity" Style="inv_category_commodity"/>
+  <Button X="101" Y="223" id="category_weapons" Strid="8501" DrawText="false" Style="inv_category_weapons" MouseDownSound="ui_item_select"/>
+  <Button X="118" Y="223" id="category_ammo" Strid="8522" DrawText="false" Style="inv_category_ammo" MouseDownSound="ui_item_select"/>
+  <Button X="135" Y="223" id="category_external" Strid="8514" DrawText="false" Style="inv_category_external" MouseDownSound="ui_item_select"/>
+  <Button X="153" Y="223" id="category_internal" Strid="8513" DrawText="false" Style="inv_category_internal" MouseDownSound="ui_item_select"/>
+  <Button X="171" Y="223" id="category_commodity" Strid="8504" DrawText="false" Style="inv_category_commodity" MouseDownSound="ui_item_select"/>
 	</Panel>
 	<Panel id="buysell_controls">
 	<Button id="btn_buysell" style="trader_buy" Strid="3016" X="245" Y="29" />
@@ -38,7 +38,7 @@
 	
 	<ListBox id="tr_list" X = "418" Y = "55" Width = "186" Height="170" ItemHeight="32">
 	</ListBox>
-	<Button style="wirebutton" Text="BUY" X="230" Y="210" ID="buy_ship"/>
+	<Button style="wirebutton" Strid="1121" X="230" Y="210" ID="buy_ship"/>
 	<InfocardDisplay X="228" Y="210" Width="170" Height="40" id="credits_needed_text" /> <!-- CREDITS -->
 	</Panel>
 
@@ -49,14 +49,16 @@
 	</ListBox>
 	<ListBox id="tship_list" X = "418" Y = "85" Width = "186" Height="100" ItemHeight="32">
 	</ListBox>
-	<TextBlock TextSize="13" TextColor="text" TextShadow="black" X="15" Y="35" Width="192" Height="30" Text="PLAYER SHIP" Strid="1582"/>
+	<TextBlock TextSize="13" TextColor="text" TextShadow="black" X="15" Y="32" Width="192" Height="24" Text="PLAYER SHIP" Strid="1582"/>
+	<TextBlock TextSize="9" TextColor="text" TextShadow="black" X="15" Y="58" Width="192" Height="18" Text="CREDITS $1,234" id="shiplist_credits_text"/>
 	<TextBlock TextSize="13" TextColor="text" TextShadow="black" X="419" Y="35" Width="192" Height="30" Text="DEALER SHIPS" Strid="1120"/>
 	<Panel id="ship_preview_panel" Visible="false">
 	<TextBlock TextSize="13" TextColor="text" TextShadow="black" X="219" Y="9" Width="192" Height="30" Text="SHIP_NAME" id="ship_name"/>
 	<TextBlock TextSize="11" TextColor="text" TextShadow="black" X="219" Y="28" Width="192" Height="30" Text="SHIP_CLASS" id="ship_class"/>
 	<ModelView ID="ship_preview" X="230" Y="55" Width="160" Height="142">
 	</ModelView>
-	<Button style="wirebutton" Text="BUY" X="230" Y="210" ID="start_buy"/>
+	<Button style="wirebutton" Strid="922" X="230" Y="210" ID="start_buy"/>
+	<TextBlock TextSize="8" TextColor="text" TextShadow="black" HorizontalAlignment="Left" VerticalAlignment="Center" X="226" Y="178" Width="171" Height="65" Strid="1178" id="cant_buy_text" Visible="false" Wrap="true"/>
 	</Panel>
 	
 

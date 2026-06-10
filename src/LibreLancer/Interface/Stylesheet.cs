@@ -87,6 +87,29 @@ namespace LibreLancer.Interface
 
     [UiLoadable]
     [WattleScriptUserData]
+    public class RolloverStyle : XmlStyle
+    {
+        public string? Font { get; set; } = null;
+        public InterfaceColor? TextColor { get; set; } = null;
+        public InterfaceColor? TextShadow { get; set; } = null;
+        public UiRenderable? Background { get; set; } = null;
+        public UiRenderable? Border { get; set; } = null;
+    }
+
+    [UiLoadable]
+    [WattleScriptUserData]
+    public class TooltipStyle : XmlStyle
+    {
+        public string? Font { get; set; } = null;
+        public InterfaceColor? TextColor { get; set; } = null;
+        public InterfaceColor? TextShadow { get; set; } = null;
+        public UiRenderable? Background { get; set; } = null;
+        public UiRenderable? Border { get; set; } = null;
+        public float OffsetY { get; set; }
+    }
+
+    [UiLoadable]
+    [WattleScriptUserData]
     public class HSliderStyle : XmlStyle
     {
         public ButtonStyle? LeftButton { get; set; }
@@ -102,5 +125,20 @@ namespace LibreLancer.Interface
         public float TrackMarginX { get; set; }
         public float TrackMarginY { get; set; }
         public float Height { get; set; }
+    }
+
+    [UiLoadable]
+    [WattleScriptUserData]
+    public class NavmapStyle : XmlStyle
+    {
+        public ButtonStyle? ZoomInButton { get; set; }
+        public ButtonStyle? ZoomOutButton { get; set; }
+        public ButtonStyle? AddWaypointButton { get; set; }
+        public float UserWaypointSize { get; set; }
+        public float UserWaypointDigitWidth { get; set; }
+        public float UserWaypointDigitHeight { get; set; }
+        public int UserWaypointRouteThickness { get; set; }
+        public InterfaceColor? UserWaypointColor { get; set; }
+        public InterfaceColor? UserWaypointDigitColor { get; set; }
     }
 }

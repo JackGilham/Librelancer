@@ -6,6 +6,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Threading;
@@ -38,6 +39,7 @@ namespace LibreLancer.Server
         private UpdatePacker packer = new();
         private ConcurrentQueue<(Action, double)> delayedActions = new();
         private bool paused = false;
+        private Dictionary<GameObject, List<string>> solarDestroyedHardpoints = new();
 
         public bool Paused => paused;
 
@@ -141,7 +143,7 @@ namespace LibreLancer.Server
 
                     if (remaining > 0)
                     {
-                        newLoot.Add(new BasicCargo(c.Item, remaining));
+                        newLoot.Add(new BasicCargo(c.Item, remaining, c.Hardpoint));
                     }
                 }
 
@@ -211,8 +213,8 @@ namespace LibreLancer.Server
             {
                 if (other?.Tag is GameObject g && g.TryGetComponent<SHealthComponent>(out var health))
                 {
-                    health.Damage(missile.Missile.Explosion.HullDamage, missile.Missile.Explosion.EnergyDamage,
-                        missile.Owner);
+                    health.DamageExplosion(missile.Missile.Explosion.HullDamage, missile.Missile.Explosion.EnergyDamage,
+                            missile.Owner, pos, missile.Missile.Explosion.Radius);
                     health.OnProjectileHit(missile.Owner);
                 }
             }
@@ -466,6 +468,14 @@ namespace LibreLancer.Server
             }
 
             player.RpcClient.SpawnObjects(allComplexSpawns);
+            // Already destroyed cargo pods. TODO: loot
+            foreach (var so in solarDestroyedHardpoints)
+            {
+                foreach (var hp in so.Value)
+                {
+                    player.RpcClient.DestroyEquipment(so.Key, false, hp);
+                }
+            }
             foreach (var o in withAnimations)
                 UpdateAnimations(o, player);
             updatingObjects.Add(obj);
@@ -488,11 +498,11 @@ namespace LibreLancer.Server
             }
         }
 
-        public void ProjectileHit(GameObject obj, GameObject owner, MunitionEquip munition)
+        public void ProjectileHit(GameObject obj, GameObject? child, Vector3 hitPoint, GameObject owner, MunitionEquip munition)
         {
             if (obj.TryGetComponent<SHealthComponent>(out var health))
             {
-                health.Damage(munition.Def.HullDamage, munition.Def.EnergyDamage, owner);
+                health.Damage(munition.Def.HullDamage, munition.Def.EnergyDamage, owner, child);
                 health.OnProjectileHit(owner);
             }
         }
@@ -720,6 +730,15 @@ namespace LibreLancer.Server
             gameobj.Nickname = nickname;
             gameobj.AddComponent(new SSolarComponent(gameobj) { Faction = rep });
 
+            ObjectLoadout? solarLoadout = null;
+            if (!string.IsNullOrWhiteSpace(loadout))
+            {
+                Server.GameData.Items.TryGetLoadout(loadout, out solarLoadout);
+            }
+            solarLoadout ??= arch.Loadout;
+            if (solarLoadout != null)
+                gameobj.SetLoadout(solarLoadout, Server.Resources, null);
+
             if (!string.IsNullOrWhiteSpace(dockWith))
             {
                 var act = new DockAction() { Kind = DockKinds.Base, Target = dockWith };
@@ -751,7 +770,8 @@ namespace LibreLancer.Server
             Equipment good,
             int count,
             Transform3D transform,
-            string? nickname = null)
+            string? nickname = null,
+            Vector3? initialImpulse = null)
         {
             actions.Enqueue(() =>
             {
@@ -772,6 +792,8 @@ namespace LibreLancer.Server
                 updatingObjects.Add(go);
                 go.Register(GameWorld);
                 go.PhysicsComponent.Body.SetDamping(0.5f, 0.2f);
+                if (initialImpulse.HasValue)
+                    go.PhysicsComponent.Body.Impulse(initialImpulse.Value);
                 spawnedObjects.Add(go);
                 go.AddComponent(new SHealthComponent(go)
                     { MaxHealth = crate.Hitpoints, CurrentHealth = crate.Hitpoints });
@@ -893,6 +915,27 @@ namespace LibreLancer.Server
                 p.RpcClient.DestroyPart(obj, part);
         }
 
+        public void EquipmentDestroyed(GameObject obj, Hardpoint hardpoint)
+        {
+            foreach (Player p in Players.Keys)
+            {
+                p.RpcClient.DestroyEquipment(obj, true, hardpoint.Name);
+            }
+            // Save destroyed cargo pods
+            if (obj.SystemObject != null)
+            {
+                if (!solarDestroyedHardpoints.TryGetValue(obj, out var list))
+                {
+                    list = [];
+                    solarDestroyedHardpoints[obj] = list;
+                }
+                list.Add(hardpoint.Name);
+            }
+            // Remove from SHealthComponent
+            var health = obj.GetComponent<SHealthComponent>()!;
+            health.EquipmentHealths.Remove(hardpoint);
+        }
+
         public void LocalChatMessage(Player player, BinaryChatMessage message)
         {
             actions.Enqueue(() =>
@@ -1000,41 +1043,14 @@ namespace LibreLancer.Server
                 {
                     continue;
                 }
-
-                if (obj.TryGetComponent<SSolarComponent>(out var docking) &&
-                    docking.SendSolarUpdate)
+                if (obj.TryGetComponent<SSolarComponent>(out var solar))
                 {
-                    yield return obj;
+                    if (solar.SendSolarUpdate || solar.SendPartsUpdate)
+                    {
+                        yield return obj;
+                    }
                 }
             }
-        }
-
-        private record struct SortedUpdate(
-            FetchedDelta Old,
-            int Size,
-            int Offset,
-            GameObject Object,
-            ObjectUpdate Update)
-            : IComparable<SortedUpdate>
-        {
-            public int CompareTo(SortedUpdate other)
-            {
-                var x = ((ulong) other.Old.Priority) << 32 | (uint) other.Size;
-                var y = ((ulong) Old.Priority) << 32 | (uint) Size;
-                return x.CompareTo(y);
-            }
-        }
-
-        private class IdComparer : IComparer<SortedUpdate>
-        {
-            public static readonly IdComparer Instance = new();
-
-            private IdComparer()
-            {
-            }
-
-            public int Compare(SortedUpdate x, SortedUpdate y) =>
-                x.Update.ID.Value.CompareTo(y.Update.ID.Value);
         }
 
         // This could do with some work
@@ -1060,21 +1076,25 @@ namespace LibreLancer.Server
                 {
                     ID = new ObjNetId(obj.NetID)
                 };
-                var tr = obj.WorldTransform;
-                update.Position = tr.Position;
-                update.Orientation = tr.Orientation;
+
+                if (obj.SystemObject == null)
+                {
+                    // Don't send pos/orient of system objects, client doesn't read it.
+                    var tr = obj.WorldTransform;
+                    update.Position = new(tr.Position);
+                    update.Orientation = tr.Orientation;
+                }
+
 
                 if (obj.PhysicsComponent != null)
                 {
-                    update.SetVelocity(
-                        obj.PhysicsComponent.Body.LinearVelocity,
-                        obj.PhysicsComponent.Body.AngularVelocity
-                    );
+                    update.LinearVelocity = new(obj.PhysicsComponent.Body.LinearVelocity);
+                    update.AngularVelocity = new(obj.PhysicsComponent.Body.AngularVelocity);
                 }
 
                 if (obj.TryGetComponent<SEngineComponent>(out var eng))
                 {
-                    update.Throttle = eng.Speed;
+                    update.ThrottleFloat = eng.Speed;
                     update.EngineKill = eng.EngineKill;
                 }
 
@@ -1096,18 +1116,24 @@ namespace LibreLancer.Server
 
                 if (obj.TryGetComponent<SHealthComponent>(out var health))
                 {
-                    update.HullValue = (long) health.CurrentHealth;
+                    update.Hull = (int) health.CurrentHealth;
                     var sh = obj.GetFirstChildComponent<SShieldComponent>();
 
                     if (sh != null)
                     {
-                        update.ShieldValue = (long) sh.Health;
+                        update.Shield = (int) sh.Health;
+                    }
+                    if (health.EquipmentHealths.Count > 0)
+                    {
+                        update.DamagedParts = health.EquipmentHealths
+                            .Select(x => new PartHealth(FLHash.CreateID(x.Key.Name), (byte)(x.Value * 255f)))
+                            .ToArray();
                     }
                 }
 
                 if (obj.TryGetComponent<WeaponControlComponent>(out var weapons))
                 {
-                    update.Guns = weapons.GetRotations();
+                    update.Guns = weapons.GetRotations() ?? [];
                 }
 
                 allUpdates[i] = update;

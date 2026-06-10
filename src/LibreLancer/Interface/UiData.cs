@@ -23,6 +23,7 @@ namespace LibreLancer.Interface
         public FontManager Fonts = null!;
         public FileSystem FileSystem = null!;
         public Dictionary<string, string>? NavbarIcons;
+        public Dictionary<int, int> RolloverMap = new();
 
         public SoundManager Sounds = null!;
 
@@ -60,6 +61,7 @@ namespace LibreLancer.Interface
             {
                 NavmapIcons = new NavmapIcons();
             }
+            RolloverMap = game.GameData.Items.Ini.Rollover.Map;
 
             if (!string.IsNullOrWhiteSpace(game.GameData.Items.Ini.Freelancer.XInterfacePath))
             {
@@ -92,13 +94,23 @@ namespace LibreLancer.Interface
             return fontName;
         }
 
+        public float GetFontSize(string fontName)
+        {
+            if (fontName[0] == '$')
+            {
+                return Fonts.ResolveSize(fontName.Substring(1));
+            }
+            return 12;
+        }
+
         public InterfaceColor GetColor(string color)
         {
-            var clr = Resources.Colors.FirstOrDefault(x => x.Name.Equals(color, StringComparison.OrdinalIgnoreCase));
-            return clr ?? new InterfaceColor()
-            {
-                Color = Parser.Color(color)
-            };
+            var clr = Resources?.Colors?.FirstOrDefault(x => x.Name.Equals(color, StringComparison.OrdinalIgnoreCase));
+            if (clr != null)
+                return clr;
+            if (Parser.TryParseColor(color, out var c))
+                return c;
+            return Color4.White;
         }
 
         private Dictionary<string, Texture2D?> loadedFiles = new();

@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using LibreLancer.Data;
 using LibreLancer.Graphics;
+using LibreLancer.Graphics.Text;
 using LibreLancer.Render;
 
 namespace LibreLancer.Interface
@@ -54,6 +55,8 @@ namespace LibreLancer.Interface
         // State
         private bool mode2d = false;
         private FreelancerGame? game;
+
+        public VertexBuffer? NavmapBuffer;
 
         public UiContext(UiData data)
         {
@@ -104,9 +107,9 @@ namespace LibreLancer.Interface
             lua.LoadMain();
         }
 
-        public void OpenScene(string scene)
+        public void OpenScene(string scene, params object[] args)
         {
-            lua.OpenScene(scene);
+            lua.OpenScene(scene, args);
         }
 
 
@@ -190,6 +193,8 @@ namespace LibreLancer.Interface
             var ratio = ViewportHeight / 480;
             return points * ratio;
         }
+
+        public Vector2 PixelsToPoints(Point pixels) => PixelsToPoints(new Vector2(pixels.X, pixels.Y));
 
         public Vector2 PixelsToPoints(Vector2 pixels) => pixels * (480f / ViewportHeight);
 
@@ -345,6 +350,11 @@ namespace LibreLancer.Interface
             Data.Sounds?.PlayOneShot(sound);
         }
 
+        public void LoadSound(string sound)
+        {
+            Data.Sounds?.LoadSound(sound);
+        }
+
         public void PlayVoiceLine(string voice, string line)
         {
             Data.Sounds?.PlayVoiceLine(voice, line, null);
@@ -405,9 +415,34 @@ namespace LibreLancer.Interface
 
         public double DeltaTime;
 
+        private string? requestedRollover = null;
+        private CachedRenderString? rolloverCache;
+
+        private string? requestedTooltip = null;
+        private RectangleF tooltipParent;
+        private CachedRenderString? tooltipCache;
+
+        public void SetRollover(int itemStrid)
+        {
+            if (Data.RolloverMap.TryGetValue(itemStrid, out var rollStrid) &&
+                Data.Infocards != null &&
+                Data.Infocards.HasStringResource(rollStrid))
+            {
+                requestedRollover = Data.Infocards.GetStringResource(rollStrid);
+            }
+        }
+
+        public void SetTooltip(string text, RectangleF controlRectangle)
+        {
+            requestedTooltip = text;
+            tooltipParent = controlRectangle;
+        }
+
         public void RenderWidget(double delta)
         {
             DeltaTime = delta;
+            requestedRollover = null;
+            requestedTooltip = null;
 
             if (baseWidget == null)
             {
@@ -432,7 +467,80 @@ namespace LibreLancer.Interface
 
             foreach (var widget in modals)
                 widget.Widget.Render(this, dlist, desktopRect);
+
+            if (!string.IsNullOrWhiteSpace(requestedRollover))
+            {
+                var style = Data.Stylesheet?.Lookup<RolloverStyle>(null);
+
+                var maxWidth = PointsToPixels(225);
+
+                var fnt = Data.GetFont(style?.Font ?? "Arial");
+                var sz = TextSize(Data.GetFontSize(style?.Font ?? "Arial"));
+
+                var col = style?.TextColor?.GetColor(GlobalTime) ?? Color4.White;
+                var shadow = style?.TextShadow?.GetColor(GlobalTime);
+
+                var measuredText = RenderContext.Renderer2D.MeasureStringCached(
+                    ref rolloverCache, fnt, sz, requestedRollover, false,
+                    shadow != null, TextAlignment.Left, maxWidth);
+                var rectSize = PixelsToPoints(measuredText);
+
+                var ttRect = new RectangleF(0, 0, rectSize.X + 4, rectSize.Y + 2);
+                style?.Background?.Draw(this, dlist, ttRect);
+
+                var offsetX = PointsToPixels(2);
+                var offsetY = PointsToPixels(1);
+
+                dlist.DrawStringCached(ref rolloverCache, fnt, sz, requestedRollover,
+                    offsetX, offsetY, col, false,
+                    shadow != null ? new(shadow.Value) : default,
+                    TextAlignment.Left, maxWidth);
+
+                style?.Border?.Draw(this, dlist, ttRect);
+            }
+
+            if (!string.IsNullOrWhiteSpace(requestedTooltip))
+            {
+                var style = Data.Stylesheet?.Lookup<TooltipStyle>(null);
+
+                var maxWidth = PointsToPixels(225);
+
+                var fnt = Data.GetFont(style?.Font ?? "Arial");
+                var sz = TextSize(Data.GetFontSize(style?.Font ?? "Arial"));
+
+                var col = style?.TextColor?.GetColor(GlobalTime) ?? Color4.White;
+                var shadow = style?.TextShadow?.GetColor(GlobalTime);
+
+                var measuredText = RenderContext.Renderer2D.MeasureStringCached(
+                    ref tooltipCache, fnt, sz, requestedTooltip, false,
+                    shadow != null, TextAlignment.Left, maxWidth);
+                var rectSize = PixelsToPoints(measuredText);
+
+                var rectOffset = style?.OffsetY ?? 0;
+
+                var ttRect = new RectangleF(tooltipParent.X, tooltipParent.Y + tooltipParent.Height + rectOffset,
+                    rectSize.X + 4, rectSize.Y + 2);
+                style?.Background?.Draw(this, dlist, ttRect);
+
+                var scrTtRect = PointsToPixels(ttRect);
+
+                var posX = scrTtRect.X + PointsToPixels(2);
+                var posY = scrTtRect.Y + PointsToPixels(1);
+
+                dlist.DrawStringCached(ref tooltipCache, fnt, sz, requestedTooltip,
+                    posX, posY, col, false,
+                    shadow != null ? new(shadow.Value) : default,
+                    TextAlignment.Left, maxWidth);
+
+                style?.Border?.Draw(this, dlist, ttRect);
+            }
+
             dlist.Render();
+        }
+
+        public void Dispose()
+        {
+            NavmapBuffer?.Dispose();
         }
     }
 }

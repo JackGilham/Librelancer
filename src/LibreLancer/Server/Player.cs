@@ -187,6 +187,18 @@ namespace LibreLancer.Server
             Story.Advance(this);
         }
 
+        public void ResetMissionDockingRestrictions()
+        {
+            if (MPlayer == null)
+                return;
+
+            MPlayer.CanDock = 1;
+            MPlayer.CanTl = 1;
+            MPlayer.DockExceptions.Clear();
+            MPlayer.TlExceptions.Clear();
+            AllowedDockUpdate();
+        }
+
         public void SPMissionFailure(int ids)
         {
             rpcClient.StoryMissionFailed(ids);
@@ -258,6 +270,11 @@ namespace LibreLancer.Server
         void IServerPlayer.OnLocationEnter(string _base, string room)
         {
             msnRuntime?.EnterLocation(room, _base);
+        }
+
+        void IServerPlayer.OnLocationExit(string _base, string room)
+        {
+            msnRuntime?.ExitLocation(room, _base);
         }
 
         public ulong GetShipWorth()
@@ -404,10 +421,11 @@ namespace LibreLancer.Server
 
                 yield return new NetSoldShip()
                 {
-                    ShipCRC = (int) FLHash.CreateID(s.Package.Ship!),
+                    ShipCRC = (int)s.Package.Ship.CRC,
                     PackageCRC = (int) FLHash.CreateID(s.Package.Nickname),
                     HullPrice = (ulong) s.Package.BasePrice,
-                    PackagePrice = (ulong) s.Package.BasePrice + goodsPrice
+                    PackagePrice = (ulong) s.Package.BasePrice + goodsPrice,
+                    Rank = s.Rank
                 };
             }
         }
@@ -848,7 +866,14 @@ namespace LibreLancer.Server
                 return;
             }
 
-            var needsFlag = (Character!.GetVisitFlags(hash) & VisitFlags.Visited) != VisitFlags.Visited;
+            if (Character == null)
+            {
+                // HACK: Race condition between disconnect and player being
+                // removed from server world.
+                return;
+            }
+
+            var needsFlag = (Character.GetVisitFlags(hash) & VisitFlags.Visited) != VisitFlags.Visited;
             var needsList = obj.Archetype.Type is ArchetypeType.jumphole or ArchetypeType.jump_hole &&
                             !Character.IsJumpholeVisited(hash);
 

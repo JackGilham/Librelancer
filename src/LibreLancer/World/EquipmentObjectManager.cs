@@ -51,7 +51,8 @@ namespace LibreLancer.World
             }
 
             obj.Parent = parent;
-            obj.AddComponent(new EquipmentComponent(equip, obj));
+            var component = new EquipmentComponent(equip, obj);
+            obj.AddComponent(component);
             parent.Children.Add(obj);
             if (equip.LODRanges != null && obj.RenderComponent is ModelRenderer mrender)
                 mrender.LODRanges = equip.LODRanges;
@@ -68,6 +69,7 @@ namespace LibreLancer.World
 
             var hp = parent.GetHardpoint(hardpoint);
             obj.Attachment = hp;
+            HardpointHulls.Activate(component);
 
             if (obj.RenderComponent is not ModelRenderer || parent.RenderComponent == null)
             {

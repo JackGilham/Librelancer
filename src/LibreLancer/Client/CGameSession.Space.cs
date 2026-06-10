@@ -30,6 +30,7 @@ public partial class CGameSession
         public Vector3 Steering;
         public Vector3 AimPoint;
         public float Throttle;
+        public float CruiseSpeedOffset;
         public StrafeControls Strafe;
         public bool Thrust;
         public bool EngineKill;
@@ -77,6 +78,7 @@ public partial class CGameSession
             Strafe = moveState[^i].Strafe,
             Throttle = moveState[^i].Throttle,
             Cruise = moveState[^i].CruiseEnabled,
+            CruiseSpeedOffset = moveState[^i].CruiseSpeedOffset,
             Thrust = moveState[^i].Thrust,
             EngineKill = moveState[^1].EngineKill,
             FireCommand = moveState[^i].FireCommand
@@ -113,6 +115,7 @@ public partial class CGameSession
                 AimPoint = wp.AimPoint,
                 Strafe = phys.CurrentStrafe,
                 Throttle = phys.EnginePower,
+                CruiseSpeedOffset = steering.Cruise ? steering.CruiseSpeedOffset : 0,
                 Thrust = steering.Thrust,
                 CruiseEnabled = steering.Cruise,
                 EngineKill = steering.EngineKill,
@@ -327,8 +330,7 @@ public partial class CGameSession
                 gp.player.SetLocalTransform(new Transform3D(state.Position, state.Orientation));
                 gp.player.PhysicsComponent!.Body!.LinearVelocity = state.LinearVelocity;
                 gp.player.PhysicsComponent.Body.AngularVelocity = state.AngularVelocity;
-                phys.ChargePercent = state.CruiseChargePct;
-                phys.CruiseAccelPct = state.CruiseAccelPct;
+                phys.SetCruiseState(state.CruiseChargePct, state.CruiseAccelPct);
 
                 // simulate inputs - only outside a tradelane. we go back in time for a tradelane a bit
                 for (i = i + 1; i < moveState.Count; i++)
@@ -353,15 +355,16 @@ public partial class CGameSession
         {
             eng.Speed = update.Throttle;
             eng.EngineKill = update.EngineKill;
+            eng.CruiseThrust = update.CruiseThrust;
             foreach (var comp in obj.GetChildComponents<CThrusterComponent>())
                 comp.Enabled = update.CruiseThrust == CruiseThrustState.Thrusting;
         }
 
         if (obj.TryGetComponent<CHealthComponent>(out var health))
-            health.CurrentHealth = update.HullValue;
+            health.CurrentHealth = update.Hull;
 
         if (obj.TryGetFirstChildComponent<CShieldComponent>(out var sh))
-            sh.SetShieldHealth(update.ShieldValue);
+            sh.SetShieldHealth(update.Shield);
 
         if (obj.TryGetComponent<WeaponControlComponent>(out var weapons) && (update.Guns?.Length ?? 0) > 0)
         {
@@ -371,15 +374,28 @@ public partial class CGameSession
             weapons.SetRotations(update.Guns!);
         }
 
+        foreach (var ph in update.DamagedParts)
+        {
+            var hp = obj.GetHardpoint(ph.Hardpoint);
+            var child = hp == null
+                ? null
+                : obj.GetHardpointChild(hp, c => c.TryGetComponent<CHealthComponent>(out _));
+            if (child != null && child.TryGetComponent<CHealthComponent>(out var childHealth))
+            {
+                childHealth.CurrentHealth = childHealth.MaxHealth * (ph.Health / 255f);
+            }
+        }
+
+
         if (obj.SystemObject != null)
             return;
 
         var oldPos = obj.LocalTransform.Position;
         var oldQuat = obj.LocalTransform.Orientation;
-        obj.PhysicsComponent!.Body.LinearVelocity = update.LinearVelocity.Vector;
-        obj.PhysicsComponent.Body.AngularVelocity = update.AngularVelocity.Vector;
+        obj.PhysicsComponent!.Body.LinearVelocity = update.LinearVelocity.ToVector3();
+        obj.PhysicsComponent.Body.AngularVelocity = update.AngularVelocity.ToVector3();
         obj.PhysicsComponent.Body.Activate();
-        obj.PhysicsComponent.Body.SetTransform(new Transform3D(update.Position, update.Orientation.Quaternion));
+        obj.PhysicsComponent.Body.SetTransform(new Transform3D(update.Position.ToVector3(), update.Orientation.Quaternion));
 
         SmoothError(obj, oldPos, oldQuat);
     }
@@ -390,6 +406,8 @@ public partial class CGameSession
         var player = gameplay.player;
         physComponent!.CurrentStrafe = moveState[i].Strafe;
         physComponent.EnginePower = moveState[i].Throttle;
+        physComponent.CruiseEnabled = moveState[i].CruiseEnabled;
+        physComponent.CruiseSpeedOffset = moveState[i].CruiseEnabled ? moveState[i].CruiseSpeedOffset : 0;
         physComponent.Steering = moveState[i].Steering;
         physComponent.ThrustEnabled = moveState[i].Thrust;
         physComponent.EngineKillEnabled = moveState[i].EngineKill;
@@ -556,6 +574,34 @@ public partial class CGameSession
         {
             spaceGameplay!.world.GetObject(id)
                 ?.DisableCmpPart(part, spaceGameplay!.world, Game.ResourceManager, out _);
+        });
+    }
+
+    void IClientPlayer.DestroyEquipment(ObjNetId id, bool explode, string hardpoint)
+    {
+        RunSync(() =>
+        {
+            var obj = spaceGameplay!.world.GetObject(id);
+            if (obj == null)
+            {
+                FLLog.Warning("Client", $"Tried to destroy equipment on unknown object {id}");
+                return;
+            }
+
+            var hp = obj.GetHardpoint(hardpoint);
+            if (explode && hp != null)
+            {
+                var child = obj.GetHardpointChild(hp, c => c.TryGetComponent<CExplosionComponent>(out _));
+                if (child != null)
+                {
+                    spaceGameplay.Explode(child);
+                }
+            }
+
+            if (!obj.RemoveEquipment(hardpoint, spaceGameplay.world))
+            {
+                FLLog.Warning("Client", $"Tried to destroy missing equipment {hardpoint} on {id}");
+            }
         });
     }
 
@@ -746,7 +792,11 @@ public partial class CGameSession
         scanId = id;
         scanLoadout = diff.Apply(scanLoadout);
         scannedInventory = BuildScanList(scanLoadout);
-        gameplayActions.Enqueue(() => { spaceGameplay?.UpdateScan(); });
+        var loadout = scanLoadout;
+        gameplayActions.Enqueue(() =>
+        {
+            spaceGameplay?.UpdateScan();
+        });
     }
 
     void IClientPlayer.StoryMissionFailed(int failedIds)
@@ -1127,6 +1177,8 @@ public partial class CGameSession
         PlayerBase = null;
         CurrentObjective = objective;
         FLLog.Info("Client", $"Spawning in {system}");
+        if (!string.Equals(PlayerSystem, system, StringComparison.OrdinalIgnoreCase))
+            ClearUserWaypoints();
         PlayerSystem = system;
         PlayerPosition = position;
         PlayerOrientation = orientation;

@@ -41,22 +41,33 @@ namespace LibreLancer.World.Components
             partRemoved = true;
         }
 
-        private List<Hardpoint> hardpoints = [];
+        private List<(Hardpoint Hardpoint, object? Tag)> hardpoints = [];
 
-        public bool ActivateHardpoint(Hardpoint hardpoint)
+        public void ActivateHardpoint(Hardpoint hardpoint)
+        {
+            ActivateHardpoint(hardpoint, hardpoint);
+        }
+
+        public void ActivateHardpoint(Hardpoint hardpoint, object? tag)
         {
             var hpid = CrcTool.FLModelCrc(hardpoint.Name);
             var meshId = Parent?.Model?.RigidModel.Source == RigidModelSource.SinglePart
                 ? 0
                 : CrcTool.FLModelCrc(hardpoint.Parent!.Name);
-            hardpoints.Add(hardpoint);
-            return _convexMesh!.AddPart(SurPath.FileId, new ConvexMeshId(meshId, hpid), hardpoint.Parent!.LocalTransform, hardpoint);
+            hardpoints.Add((hardpoint, tag));
+             _convexMesh?.AddPart(SurPath.FileId, new ConvexMeshId(meshId, hpid), hardpoint.Parent!.LocalTransform, tag);
         }
 
         public void DeactivateHardpoint(Hardpoint hardpoint)
         {
-            hardpoints.Remove(hardpoint);
-            _convexMesh?.RemovePart(hardpoint);
+            for (int i = hardpoints.Count - 1; i >= 0; i--)
+            {
+                if (hardpoints[i].Hardpoint == hardpoint)
+                {
+                    _convexMesh?.RemovePart(hardpoints[i].Tag);
+                    hardpoints.RemoveAt(i);
+                }
+            }
         }
 
         private bool isInterpolating = false;
@@ -165,6 +176,16 @@ namespace LibreLancer.World.Components
                         _convexMesh.AddPart(meshId, id, part.Construct == null ? Transform3D.Identity : part.LocalTransform, part);
                     }
                 }
+
+                foreach (var hardpoint in hardpoints)
+                {
+                    var hpid = CrcTool.FLModelCrc(hardpoint.Hardpoint.Name);
+                    var hpMeshId = Parent?.Model?.RigidModel.Source == RigidModelSource.SinglePart
+                        ? 0
+                        : CrcTool.FLModelCrc(hardpoint.Hardpoint.Parent!.Name);
+                    _convexMesh?.AddPart(SurPath.FileId, new ConvexMeshId(hpMeshId, hpid),
+                        hardpoint.Hardpoint.Parent!.LocalTransform, hardpoint.Tag);
+                }
             }
 
             if (_convexMesh is { BepuChildCount: 0 })
@@ -202,9 +223,9 @@ namespace LibreLancer.World.Components
 
             foreach (var hp in hardpoints)
             {
-                if (hp.Parent?.Construct != null)
+                if (hp.Hardpoint.Parent?.Construct != null)
                 {
-                    _convexMesh?.UpdatePart(hp, hp.Parent.LocalTransform);
+                    _convexMesh?.UpdatePart(hp.Tag, hp.Hardpoint.Parent.LocalTransform);
                 }
             }
 

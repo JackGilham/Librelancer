@@ -520,24 +520,16 @@ public class GameItemDb
         foreach (var g in ships)
         {
             Good hull = hulls[g.Hull!];
-            var sp = new ShipPackage
-            {
-                Ship = hull.Ship,
-                Nickname = g.Nickname
-            };
-            sp.CRC = FLHash.CreateID(sp.Nickname);
+            if (!Ships.TryGetValue(hull.Ship, out var ship))
+                continue;
+            var sp = new ShipPackage(g.Nickname, ship);
             sp.BasePrice = hull.Price;
 
             foreach (var addon in g.Addons)
             {
                 if (Equipment.TryGetValue(addon.Equipment, out var equip))
                 {
-                    sp.Addons.Add(new PackageAddon()
-                    {
-                        Equipment = equip!,
-                        Hardpoint = addon.Hardpoint,
-                        Amount = addon.Amount
-                    });
+                    sp.Addons.Add(new PackageAddon(equip, addon.Hardpoint, addon.Amount));
                 }
             }
 
@@ -569,7 +561,7 @@ public class GameItemDb
                 {
                     if (gd.Min != 0 || gd.Max != 0) //Vanilla adds disabled ships ??? (why)
                     {
-                        @base.SoldShips.Add(new SoldShip() { Package = sp });
+                        @base.SoldShips.Add(new SoldShip() { Package = sp, Rank = gd.Rank });
                     }
                 }
                 else if (Goods.TryGetValue(gd.Good, out var good))
@@ -808,7 +800,7 @@ public class GameItemDb
         var debrisTask = tasks.Begin(InitDebris);
         var shipsTask = tasks.Begin(InitShips, explosionTask, fusesTask, debrisTask);
         var voicesTask = tasks.Begin(InitVoices);
-        var equipmentTask = tasks.Begin(InitEquipment, effectsTask);
+        var equipmentTask = tasks.Begin(InitEquipment, effectsTask, explosionTask);
         var loadoutsTask = tasks.Begin(InitLoadouts, equipmentTask);
         var npcShips = tasks.Begin(InitNpcShips, shipsTask, loadoutsTask);
         var factionsTask = tasks.Begin(InitFactions, voicesTask, npcShips);
@@ -1043,10 +1035,26 @@ public class GameItemDb
 
             if (val is CountermeasureDropper cms)
             {
+                Equipment.TryGetValue(cms.ProjectileArchetype, out Equipment? countermeasureEquip);
                 var eqp = new CountermeasureEquipment
                 {
                     HpType = "hp_countermeasure_dropper",
+                    Def = cms,
+                    Munition = countermeasureEquip as MunitionEquip,
                     ModelFile = ResolveDrawable(cms.MaterialLibrary, cms.DaArchetype)
+                };
+                equip = eqp;
+            }
+
+            if (val is MineDropper md)
+            {
+                Equipment.TryGetValue(md.ProjectileArchetype, out Equipment? mineEquip);
+                var eqp = new MineDropperEquipment
+                {
+                    HpType = "hp_mine_dropper",
+                    Def = md,
+                    Mine = mineEquip as MunitionEquip,
+                    ModelFile = ResolveDrawable(md.MaterialLibrary, md.DaArchetype)
                 };
                 equip = eqp;
             }
@@ -1068,7 +1076,7 @@ public class GameItemDb
                 };
                 equip = eqp;
             }
-            else if (val is Gun gn)
+            else if (val is not CountermeasureDropper && val is Gun gn)
             {
                 Equipment.TryGetValue(gn.ProjectileArchetype, out Equipment? mnEquip);
 
@@ -1164,6 +1172,17 @@ public class GameItemDb
                     ModelFile = ResolveDrawable(lc.MaterialLibrary, lc.DaArchetype),
                     Mass = lc.Mass,
                     Hitpoints = lc.Hitpoints
+                };
+                equip = eq;
+            }
+
+            if (val is CargoPod cp)
+            {
+                var eq = new CargoPodEquipment
+                {
+                    ModelFile = ResolveDrawable(cp.MaterialLibrary, cp.DaArchetype),
+                    Explosion = cp.ExplosionArch is not null ? Explosions.Get(cp.ExplosionArch) : null,
+                    Hitpoints = cp.Hitpoints
                 };
                 equip = eq;
             }
@@ -1275,7 +1294,7 @@ public class GameItemDb
 
                 if (equip != null)
                 {
-                    ld.Cargo.Add(new BasicCargo(equip, c.Count));
+                    ld.Cargo.Add(new BasicCargo(equip, c.Count, c.Hardpoint));
                 }
             }
 
@@ -1289,11 +1308,6 @@ public class GameItemDb
 
         foreach (var inisys in flData.Universe.Systems)
         {
-            if (inisys.MultiUniverse)
-            {
-                continue; //Skip multiuniverse for now
-            }
-
             FLLog.Info("System", inisys.Nickname);
             var sys = new StarSystem
             {
@@ -2610,4 +2624,43 @@ public class GameItemDb
 
         public Dictionary<string, VisEffect> VisFx = new(StringComparer.OrdinalIgnoreCase);
     }
+
+    public List<SystemConnection> BuildConnections()
+    {
+        Dictionary<string, SystemConnection> byPair = new(StringComparer.OrdinalIgnoreCase);
+        foreach (var sys in Systems)
+        {
+            foreach (var obj in sys.Objects)
+            {
+                if(obj.Dock?.Kind == DockKinds.Jump &&
+                   !sys.Nickname.Equals(obj.Dock.Target, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!Systems.TryGetValue(obj.Dock.Target, out var other))
+                        continue;
+
+                    var key = PairKey(sys.Nickname, other.Nickname);
+                    var legal = obj.Archetype?.Type == ArchetypeType.jump_gate;
+                    if (byPair.TryGetValue(key, out var existing))
+                    {
+                        if (legal && !existing.Legal)
+                            byPair[key] = existing with { Legal = true };
+                    }
+                    else
+                    {
+                        byPair[key] = new SystemConnection(sys, other, legal);
+                    }
+                }
+            }
+        }
+
+        return byPair.Values
+            .OrderBy(x => x.From.Nickname)
+            .ThenBy(x => x.To.Nickname)
+            .ToList();
+    }
+
+    private static string PairKey(string a, string b) =>
+        string.Compare(a, b, StringComparison.OrdinalIgnoreCase) <= 0
+            ? $"{a}\n{b}"
+            : $"{b}\n{a}";
 }

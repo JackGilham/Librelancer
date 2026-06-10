@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using LibreLancer.Client.Components;
 using LibreLancer.Data;
 using LibreLancer.Data.GameData.Items;
 using LibreLancer.Fx;
@@ -59,7 +60,8 @@ namespace LibreLancer.World
                         dir,
                         length,
                         out var contactPoint,
-                        out var po))
+                        out var po,
+                        out var tag))
                 {
                     Projectiles[i].Alive = false;
                     Projectiles[i].Effect = null;
@@ -67,7 +69,8 @@ namespace LibreLancer.World
 
                     if (po?.Tag is GameObject go)
                     {
-                        world.Server?.ProjectileHit(go, Projectiles[i].Owner, Projectiles[i].Data.Munition);
+                        world.Server?.ProjectileHit(go, tag as GameObject, contactPoint, Projectiles[i].Owner,
+                            Projectiles[i].Data.Munition);
                     }
 
                     Ids.Free(i);
