@@ -28,6 +28,24 @@ public class FormationTools
         }
     }
 
+    public static void LeaveFormation(GameObject self, GameObject tgt)
+    {
+        if (self.Formation != null)
+        {
+            self.Formation.Remove(self);
+            self.Formation = null;
+        }
+        if (tgt.Formation != null)
+        {
+            if(tgt.Formation.Contains(self))
+                tgt.Formation.Remove(self);
+        }
+        if (self.TryGetComponent<AutopilotComponent>(out var ap))
+        {
+            ap.Cancel();
+        }
+    }
+
     public static void MakeNewFormation(GameObject obj, GameWorld world, string formation, List<string?> others)
     {
         // TODO: Gross
